@@ -11,6 +11,7 @@ jobs:
     steps:
       - name: Wait for Vercel deployment
         run: sleep 25
+
       - name: Check production health endpoint
         run: |
           set -euo pipefail
@@ -18,6 +19,7 @@ jobs:
           echo "$response"
           echo "$response" | grep -q '"telemetryConfigured":true'
           echo "$response" | grep -q '"tokenValid":true'
+
       - name: Send synthetic telemetry event
         run: |
           set -euo pipefail
@@ -26,3 +28,33 @@ jobs:
             --data '{"event":"apc_health_check","distinct_id":"github_health_check","properties":{"platform":"ci","agent_count":0}}')"
           echo "$response"
           echo "$response" | grep -q '"ok":true'
+
+      - name: Check migration landing page
+        run: |
+          set -euo pipefail
+          page="$(curl -fsS https://agent-portability-check.vercel.app/)"
+          echo "$page" | grep -q 'See which skills won’t carry over in 10 seconds'
+          echo "$page" | grep -q -- '--target claude'
+          echo "$page" | grep -q 'Ready / Auto-fix / Manual'
+
+      - name: Check completed target trophy page
+        run: |
+          set -euo pipefail
+          url='https://agent-portability-check.vercel.app/r/ci-target?v=5&score=na&total=7&portable=0&ready=7&shared=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0'
+          page="$(curl -fsS "$url")"
+          echo "$page" | grep -q '7 / 7'
+          echo "$page" | grep -q 'ready for Claude Code'
+          echo "$page" | grep -q 'Copy README badge'
+          echo "$page" | grep -q 'Open LinkedIn'
+          echo "$page" | grep -q 'og:image'
+
+      - name: Check dynamic OG image and README badge
+        run: |
+          set -euo pipefail
+          og_headers="$(curl -fsSI 'https://agent-portability-check.vercel.app/api/og?v=5&score=na&total=7&portable=0&ready=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0')"
+          echo "$og_headers" | grep -Eiq 'content-type: image/(png|webp)'
+
+          badge_headers="$(curl -fsSI 'https://agent-portability-check.vercel.app/api/badge?target=claude&ready=7&total=7')"
+          echo "$badge_headers" | grep -Eiq 'content-type: image/svg\+xml'
+          badge="$(curl -fsS 'https://agent-portability-check.vercel.app/api/badge?target=claude&ready=7&total=7')"
+          echo "$badge" | grep -q '7/7 ready'
