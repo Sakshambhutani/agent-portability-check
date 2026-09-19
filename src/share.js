@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 const DEFAULT_PUBLIC_URL = 'https://agent-portability-check.vercel.app';
-const SHARE_VERSION = '5';
+const SHARE_VERSION = '6';
 
 export function normalizeReferralId(value) {
   if (typeof value !== 'string') return '';
@@ -45,6 +45,10 @@ export function createShareInfo(report, {
     url.searchParams.set('targetTotal', String(targetCompatibility.summary.total));
     url.searchParams.set('targetAuto', String(targetCompatibility.summary.autoFix));
     url.searchParams.set('targetManual', String(targetCompatibility.summary.manual));
+    url.searchParams.set('targetContext', String(targetCompatibility.contextRisks?.length || 0));
+    url.searchParams.set('targetDeps', String(targetCompatibility.dependencyRiskCount || 0));
+    url.searchParams.set('runtime', targetCompatibility.runtime || 'local');
+    url.searchParams.set('targetComplete', targetCompatibility.fullyReady ? '1' : '0');
   }
 
   return {
