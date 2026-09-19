@@ -58,10 +58,13 @@ jobs:
       - name: Check dynamic OG image and README badge
         run: |
           set -euo pipefail
-          og_headers="$(curl -fsSI 'https://agent-portability-check.vercel.app/api/og?v=5&score=na&total=7&portable=0&ready=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0')"
-          echo "$og_headers" | grep -Eiq 'content-type: image/(png|webp)'
 
-          badge_headers="$(curl -fsSI 'https://agent-portability-check.vercel.app/api/badge?target=claude&ready=7&total=7')"
-          echo "$badge_headers" | grep -Eiq 'content-type: image/svg\+xml'
-          badge="$(curl -fsS 'https://agent-portability-check.vercel.app/api/badge?target=claude&ready=7&total=7')"
-          echo "$badge" | grep -q '7/7 ready'
+          curl -fsS -D /tmp/og-headers.txt -o /tmp/og-image.bin \
+            'https://agent-portability-check.vercel.app/api/og?v=5&score=na&total=7&portable=0&ready=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0'
+          grep -Eiq 'content-type: image/(png|webp)' /tmp/og-headers.txt
+          test -s /tmp/og-image.bin
+
+          curl -fsS -D /tmp/badge-headers.txt -o /tmp/badge.svg \
+            'https://agent-portability-check.vercel.app/api/badge?target=claude&ready=7&total=7'
+          grep -Eiq 'content-type: image/svg\+xml' /tmp/badge-headers.txt
+          grep -q '7/7 ready' /tmp/badge.svg
