@@ -21,14 +21,16 @@ export default function handler(req) {
   const score = req.query?.score === 'na' ? null : intParam(req.query?.score, 0, 100, null);
   const total = intParam(req.query?.total, 0, 999, 0);
   const portable = intParam(req.query?.portable, 0, total || 999, 0);
+  const shared = intParam(req.query?.shared, 0, total || 999, portable);
   const drift = intParam(req.query?.drift, 0, 999, 0);
   const agents = cleanAgents(req.query?.agents);
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
+  const singleAgent = score === null;
 
-  const hero = score === null ? String(total) : `${score}%`;
-  const heroLabel = score === null ? 'global skills found' : 'portable';
-  const sub = score === null
-    ? `No cross-agent score yet · ${agentLabel}`
+  const hero = singleAgent ? `${shared}/${total}` : `${score}%`;
+  const heroLabel = singleAgent ? 'skills in shared format' : 'portable';
+  const sub = singleAgent
+    ? `${total} global skills found in ${agentLabel}`
     : `${portable} / ${total} skills travel across ${agentLabel}`;
 
   return new ImageResponse(
@@ -43,17 +45,17 @@ export default function handler(req) {
       padding: '64px 72px',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column' }}>
-        <div style={{ fontSize: 28, color: '#9aa6b2', letterSpacing: '0.08em' }}>
+        <div style={{ fontSize: 27, color: '#9aa6b2', letterSpacing: '0.08em' }}>
           AGENT PORTABILITY CHECK
         </div>
-        <div style={{ fontSize: 62, fontWeight: 800, marginTop: 26, letterSpacing: '-0.04em' }}>
+        <div style={{ fontSize: 58, fontWeight: 800, marginTop: 24, letterSpacing: '-0.04em' }}>
           How portable is my AI setup?
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 142, fontWeight: 900, letterSpacing: '-0.07em', lineHeight: 0.9 }}>
+          <div style={{ fontSize: singleAgent ? 126 : 142, fontWeight: 900, letterSpacing: '-0.07em', lineHeight: 0.9 }}>
             {hero}
           </div>
           <div style={{ fontSize: 30, color: '#9aa6b2', marginTop: 14 }}>
