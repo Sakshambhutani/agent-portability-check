@@ -296,15 +296,23 @@ function analyzeScope(skills, installedKeys) {
     if (hasDrift) drift.push({ name, copies });
 
     const availableToInstalled = (key) => {
-      // Codex and Cursor natively discover the shared Agent Skills root.
-      if (key === 'codex' || key === 'cursor') {
-        return hasPortableCopy || nativeOwners.has(key);
+      // Current Codex user skills live in ~/.agents/skills.
+      if (key === 'codex') {
+        return hasPortableCopy;
       }
-      // Claude Code discovers ~/.claude/skills; a shared skill needs a Claude-side
-      // copy or adapter (the fixer creates an individual symlink when needed).
+
+      // Cursor supports the shared Agent Skills root and compatibility locations
+      // for Cursor, Claude, and Codex skills.
+      if (key === 'cursor') {
+        return hasPortableCopy || nativeOwners.size > 0;
+      }
+
+      // Claude Code discovers ~/.claude/skills; a shared canonical skill needs a
+      // Claude-side copy or adapter (the fixer creates an individual symlink).
       if (key === 'claude') {
         return nativeOwners.has('claude');
       }
+
       return nativeOwners.has(key);
     };
 
