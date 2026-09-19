@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 const DEFAULT_PUBLIC_URL = 'https://agent-portability-check.vercel.app';
-const SHARE_VERSION = '3';
+const SHARE_VERSION = '4';
 
 export function normalizeReferralId(value) {
   if (typeof value !== 'string') return '';
