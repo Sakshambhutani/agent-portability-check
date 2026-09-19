@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Agent Portability Check</title>
+  <meta name="description" content="See how portable your AI setup is across Codex, Claude Code, and Cursor.">
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#0b0d10;color:#f7f8fa}
+    body{margin:0}.shell{width:min(980px,calc(100% - 40px));margin:auto}
+    header{display:flex;justify-content:space-between;align-items:center;padding:24px 0}
+    header a{color:#b9c2cc;text-decoration:none}
+    main{padding:72px 0 100px}.eyebrow{font-family:ui-monospace,monospace;color:#8e9ba9}
+    h1{font-size:clamp(52px,9vw,96px);line-height:.94;letter-spacing:-.055em;max-width:900px;margin:20px 0}
+    .lead{font-size:22px;color:#aeb8c3;max-width:700px;line-height:1.5}
+    .terminal{margin:36px 0;background:#12161b;border:1px solid #2a313a;border-radius:18px;padding:18px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+    code{font-family:ui-monospace,monospace;overflow-wrap:anywhere}.btn{border:0;border-radius:10px;padding:12px 16px;font-weight:750;cursor:pointer;background:#fff;color:#0b0d10;white-space:nowrap}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:60px}
+    .tile{background:#12161b;border:1px solid #2a313a;border-radius:18px;padding:22px}.tile h3{margin-top:0}
+    .muted{color:#8e9ba9}.ref{margin:26px 0;padding:15px;border-left:3px solid #68d391;background:#101820;border-radius:8px;display:none}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}.terminal{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<div class="shell">
+<header><strong>Agent Portability Check</strong><a href="https://github.com/Sakshambhutani/agent-portability-check">GitHub ↗</a></header>
+<main>
+  <div class="eyebrow">FREE · OPEN SOURCE · LOCAL-FIRST</div>
+  <h1>How portable is your AI setup?</h1>
+  <p class="lead">Check which skills actually travel across Codex, Claude Code, and Cursor — and where your setup is drifting.</p>
+  <div id="refbox" class="ref">Someone shared their result with you. Run the command below to compare yours.</div>
+  <div class="terminal">
+    <code id="command">npx github:Sakshambhutani/agent-portability-check</code>
+    <button id="copy" class="btn">Copy command</button>
+  </div>
+  <p class="muted">Runs locally. Skill names, file paths, and instruction contents are not sent to this website.</p>
+  <div class="grid">
+    <div class="tile"><h3>1. Scan</h3><p class="muted">Detect installed agents and separate global vs project skills.</p></div>
+    <div class="tile"><h3>2. Compare</h3><p class="muted">See what travels cleanly across the agents you actually use.</p></div>
+    <div class="tile"><h3>3. Share</h3><p class="muted">Post your score and challenge a teammate to check theirs.</p></div>
+  </div>
+</main>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+const ref = (params.get('ref') || '').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
+const command = 'npx github:Sakshambhutani/agent-portability-check' + (ref ? ' --ref ' + ref : '');
+document.getElementById('command').textContent = command;
+if (ref) document.getElementById('refbox').style.display='block';
+const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+localStorage.setItem('apc_web_id', anon);
+async function track(event) {
+  try {
+    await fetch('/api/telemetry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event,distinct_id:'web_'+anon,properties:{referral_id:ref}})});
+  } catch {}
+}
+track('apc_landing_viewed');
+document.getElementById('copy').addEventListener('click', async ()=>{
+  await navigator.clipboard.writeText(command);
+  document.getElementById('copy').textContent='Copied';
+  track('apc_command_copied');
+});
+</script>
+</body>
+</html>
