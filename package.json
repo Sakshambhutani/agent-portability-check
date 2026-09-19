@@ -1,6 +1,6 @@
 {
   "name": "agent-portability-check",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "A privacy-first CLI that checks how portable your AI agent setup is across Claude Code, Codex, and Cursor.",
   "type": "module",
   "bin": {
@@ -17,7 +17,15 @@
     "@vercel/og": "^0.8.5",
     "react": "^19.1.1"
   },
-  "keywords": ["agents", "claude", "codex", "cursor", "skills", "ai", "portability"],
+  "keywords": [
+    "agents",
+    "claude",
+    "codex",
+    "cursor",
+    "skills",
+    "ai",
+    "portability"
+  ],
   "homepage": "https://agent-portability-check.vercel.app",
   "repository": {
     "type": "git",
