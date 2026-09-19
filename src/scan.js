@@ -143,18 +143,45 @@ export function detectInstalledHarnesses({ home = os.homedir(), platform = proce
 
 function walkSkillFiles(root) {
   if (!exists(root)) return [];
+
   const out = [];
   const stack = [root];
+  const visitedDirs = new Set();
+
   while (stack.length) {
     const dir = stack.pop();
+
+    let realDir;
+    try { realDir = fs.realpathSync(dir); } catch { continue; }
+    if (visitedDirs.has(realDir)) continue;
+    visitedDirs.add(realDir);
+
     let entries = [];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) stack.push(full);
-      else if (entry.isFile() && entry.name === 'SKILL.md') out.push(full);
+
+      if (entry.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+
+      if (entry.isSymbolicLink()) {
+        try {
+          const stat = fs.statSync(full);
+          if (stat.isDirectory()) stack.push(full);
+          else if (stat.isFile() && entry.name === 'SKILL.md') out.push(full);
+        } catch {
+          // Broken symlink: ignore it rather than failing the whole scan.
+        }
+        continue;
+      }
+
+      if (entry.isFile() && entry.name === 'SKILL.md') out.push(full);
     }
   }
+
   return out;
 }
 
