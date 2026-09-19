@@ -31,36 +31,47 @@ export default function handler(req, res) {
   const score = req.query.score === 'na' ? null : intParam(req.query.score, 0, 100, null);
   const total = intParam(req.query.total, 0, 999, 0);
   const portable = intParam(req.query.portable, 0, total || 999, 0);
+  const shared = intParam(req.query.shared, 0, total || 999, portable);
   const drift = intParam(req.query.drift, 0, 999, 0);
   const agents = cleanAgents(req.query.agents);
+  const singleAgent = score === null;
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const origin = `https://${req.headers.host}`;
   const canonical = new URL(req.url, origin).toString();
   const checkUrl = `${origin}/?ref=${encodeURIComponent(ref)}`;
-  const title = score === null
-    ? `${total} AI skills in my setup`
+
+  const title = singleAgent
+    ? `${shared}/${total} AI skills in shared format`
     : `My AI setup is ${score}% portable`;
-  const description = score === null
-    ? `${total} global skills scanned across ${agentLabel}. No cross-agent score yet.`
+
+  const description = singleAgent
+    ? `${total} global skills found in ${agentLabel}. ${shared} are currently in a shared cross-agent location.`
     : `${portable} of ${total} global skills are portable across ${agentLabel}.`;
 
   const og = new URL('/api/og', origin);
-  og.searchParams.set('score', score === null ? 'na' : String(score));
+  og.searchParams.set('v', '3');
+  og.searchParams.set('score', singleAgent ? 'na' : String(score));
   og.searchParams.set('total', String(total));
   og.searchParams.set('portable', String(portable));
+  og.searchParams.set('shared', String(shared));
   og.searchParams.set('drift', String(drift));
   og.searchParams.set('agents', agents.join(','));
 
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
-  const xText = score === null
-    ? `I checked my AI setup: ${total} global skills across ${agentLabel}. Curious how portable yours is?`
-    : `My AI setup is ${score}% portable across ${agentLabel}. ${portable}/${total} skills travel cleanly. Curious what yours looks like?`;
+  const xText = singleAgent
+    ? `I found ${total} AI skills in my ${agentLabel} setup. ${shared}/${total} are in a shared cross-agent format. Check yours:`
+    : `My AI setup is ${score}% portable across ${agentLabel}. ${portable}/${total} skills travel cleanly. Check yours:`;
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}&url=${encodeURIComponent(canonical)}`;
-  const postText = score === null
-    ? `I checked my AI setup. I have ${total} global skills in ${agentLabel}, but I only use one agent right now so there isn't a cross-agent score yet.\n\nCurious what yours looks like: ${canonical}`
+
+  const postText = singleAgent
+    ? `I found ${total} AI skills in my ${agentLabel} setup.\n\n${shared}/${total} are currently in a shared cross-agent format.\n\nCheck yours: ${canonical}`
     : `My AI setup is ${score}% portable across ${agentLabel}.\n\n${portable}/${total} skills travel cleanly and ${drift} have drifted copies.\n\nCheck yours: ${canonical}`;
 
+  const hero = singleAgent ? `${shared} / ${total}` : `${score}%`;
+  const heroLabel = singleAgent ? 'skills in shared format' : 'portable across my agents';
+
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.status(200).send(`<!doctype html>
 <html>
 <head>
@@ -80,21 +91,26 @@ export default function handler(req, res) {
   <meta name="twitter:description" content="${esc(description)}">
   <meta name="twitter:image" content="${esc(og.toString())}">
   <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#0b0d10;color:#f7f8fa}
-    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:28px}
-    .wrap{width:min(860px,100%)}
-    .card{background:#12161b;border:1px solid #2a313a;border-radius:28px;padding:42px;box-shadow:0 30px 90px rgba(0,0,0,.35)}
-    .eyebrow{font-family:ui-monospace,monospace;color:#94a0ad;letter-spacing:.08em}
-    h1{font-size:clamp(36px,6vw,64px);line-height:1;margin:18px 0}
-    .score{font-size:clamp(72px,14vw,140px);font-weight:850;letter-spacing:-.06em;margin:26px 0 4px}
-    .muted{color:#94a0ad}.stats{display:flex;gap:12px;flex-wrap:wrap;margin:28px 0}
-    .pill{border:1px solid #303945;border-radius:999px;padding:10px 14px}
-    .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
-    a,button{appearance:none;border:0;border-radius:12px;padding:13px 17px;font-weight:700;text-decoration:none;cursor:pointer}
+    :root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#090c0f;color:#f7f8fa}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:32px}
+    .wrap{width:min(820px,100%)}
+    .card{background:#12161b;border:1px solid #2a313a;border-radius:30px;padding:44px;box-shadow:0 32px 100px rgba(0,0,0,.38)}
+    .eyebrow{font-family:ui-monospace,monospace;color:#94a0ad;letter-spacing:.09em;font-size:14px}
+    h1{font-size:clamp(34px,5vw,52px);line-height:1.02;letter-spacing:-.04em;margin:16px 0 34px}
+    .hero{font-size:clamp(74px,13vw,118px);line-height:.9;font-weight:900;letter-spacing:-.065em}
+    .hero-label{font-size:22px;color:#a8b2bd;margin-top:14px}
+    .context{font-size:18px;color:#d6dde5;margin-top:26px}
+    .stats{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 8px}
+    .pill{border:1px solid #303945;border-radius:999px;padding:9px 13px;color:#c8d0d9;font-size:14px}
+    .insight{margin-top:24px;padding:18px 20px;border-radius:16px;background:#0d1116;border:1px solid #252d36;line-height:1.55}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+    a,button{appearance:none;border:0;border-radius:12px;padding:13px 16px;font-weight:750;text-decoration:none;cursor:pointer;font-size:14px}
     .primary{background:#fff;color:#0b0d10}.secondary{background:#1c232b;color:#fff;border:1px solid #303945}
-    .cta{margin-top:24px;padding-top:24px;border-top:1px solid #2a313a}
-    .copybox{margin-top:26px;background:#0d1116;border:1px solid #2a313a;border-radius:16px;padding:18px;white-space:pre-wrap;line-height:1.45;color:#d9e0e7}
-    code{font-family:ui-monospace,monospace}
+    .copybox{margin-top:22px;background:#0d1116;border:1px dashed #303945;border-radius:14px;padding:16px;white-space:pre-wrap;line-height:1.5;color:#cbd4dd;font-size:14px}
+    .cta{margin-top:30px;padding-top:26px;border-top:1px solid #2a313a;display:flex;justify-content:space-between;gap:18px;align-items:end}
+    .cta h2{margin:0 0 8px;font-size:23px}.muted{color:#94a0ad;margin:0}
+    @media(max-width:680px){.card{padding:28px}.cta{align-items:flex-start;flex-direction:column}}
   </style>
 </head>
 <body>
@@ -102,13 +118,18 @@ export default function handler(req, res) {
   <div class="card">
     <div class="eyebrow">AGENT PORTABILITY CHECK</div>
     <h1>How portable is my AI setup?</h1>
-    <div class="score">${score === null ? total : esc(score) + '%'}</div>
-    <div class="muted">${score === null ? 'global skills found · ' : ''}${esc(agentLabel)}</div>
+
+    <div class="hero">${esc(hero)}</div>
+    <div class="hero-label">${esc(heroLabel)}</div>
+    <div class="context">${esc(agentLabel)} setup · ${total} global skills</div>
+
     <div class="stats">
-      <span class="pill">${portable} / ${total} portable</span>
+      <span class="pill">${shared} shared-format</span>
       <span class="pill">${drift} drifted</span>
+      ${singleAgent ? '<span class="pill">1 agent detected</span>' : `<span class="pill">${portable} / ${total} cross-agent</span>`}
     </div>
-    <p>${esc(description)}</p>
+
+    <div class="insight">${esc(description)}</div>
 
     <div class="copybox" id="posttext">${esc(postText)}</div>
 
@@ -120,8 +141,10 @@ export default function handler(req, res) {
     </div>
 
     <div class="cta">
-      <h2>What does yours look like?</h2>
-      <p class="muted">One local command. No skill contents are uploaded.</p>
+      <div>
+        <h2>What does yours look like?</h2>
+        <p class="muted">One local command. Skill contents stay on your machine.</p>
+      </div>
       <a id="check" class="primary" href="${esc(checkUrl)}">Check yours →</a>
     </div>
   </div>
