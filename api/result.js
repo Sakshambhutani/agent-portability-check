@@ -15,6 +15,10 @@ function cleanRef(value) {
     : '';
 }
 
+function cleanTarget(value) {
+  return ['claude', 'codex', 'cursor'].includes(value) ? value : '';
+}
+
 function cleanAgents(value) {
   const allowed = new Set(['codex','claude','cursor']);
   return String(value || '')
@@ -31,56 +35,102 @@ export default function handler(req, res) {
   const score = req.query.score === 'na' ? null : intParam(req.query.score, 0, 100, null);
   const total = intParam(req.query.total, 0, 999, 0);
   const portable = intParam(req.query.portable, 0, total || 999, 0);
-  const shared = intParam(req.query.shared, 0, total || 999, portable);
+  const ready = intParam(req.query.ready ?? req.query.shared, 0, total || 999, portable);
   const drift = intParam(req.query.drift, 0, 999, 0);
   const agents = cleanAgents(req.query.agents);
+  const target = cleanTarget(req.query.target);
+  const targetLabel = target ? LABELS[target] : '';
+  const targetTotal = target ? intParam(req.query.targetTotal, 0, 999, total) : 0;
+  const targetReady = target ? intParam(req.query.targetReady, 0, targetTotal || 999, 0) : 0;
+  const targetAuto = target ? intParam(req.query.targetAuto, 0, 999, 0) : 0;
+  const targetManual = target ? intParam(req.query.targetManual, 0, 999, 0) : 0;
+
   const singleAgent = score === null;
-  const readiness = total > 0 ? Math.round(100 * shared / total) : null;
-  const portableReady = singleAgent && readiness === 100;
-  const shareAchievement = portableReady || (!singleAgent && score >= 80);
+  const readiness = total > 0 ? Math.round(100 * ready / total) : null;
+  const portableReady = total > 0 && readiness === 100 && drift === 0;
+  const targetComplete = Boolean(
+    target &&
+    targetTotal > 0 &&
+    targetReady === targetTotal &&
+    targetAuto === 0 &&
+    targetManual === 0
+  );
+  const shareAchievement = targetComplete || portableReady;
+
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const origin = `https://${req.headers.host}`;
   const canonical = new URL(req.url, origin).toString();
-  const checkUrl = `${origin}/?ref=${encodeURIComponent(ref)}`;
-  const fixCommand = `npx github:Sakshambhutani/agent-portability-check --fix${ref ? ` --ref ${ref}` : ''}`;
 
-  const title = portableReady
-    ? 'My AI setup is 100% portable-ready'
-    : (singleAgent
-      ? `${shared}/${total} AI skills in shared format`
-      : `My AI setup is ${score}% portable`);
+  const checkParams = new URLSearchParams();
+  if (ref) checkParams.set('ref', ref);
+  if (target) checkParams.set('target', target);
+  const checkUrl = `${origin}/?${checkParams.toString()}`;
 
-  const description = portableReady
-    ? `${shared}/${total} global skills are now in shared format. ${agentLabel} setup is portable-ready.`
-    : (singleAgent
-      ? `${total} global skills found in ${agentLabel}. ${shared} are currently in a shared cross-agent location.`
-      : `${portable} of ${total} global skills are portable across ${agentLabel}.`);
+  const fixCommand = [
+    'npx github:Sakshambhutani/agent-portability-check',
+    target ? `--target ${target}` : '',
+    '--fix',
+    ref ? `--ref ${ref}` : '',
+  ].filter(Boolean).join(' ');
+
+  const title = targetComplete
+    ? `My AI setup is ready for ${targetLabel}`
+    : portableReady
+      ? 'My AI setup is 100% portable-ready'
+      : target
+        ? `${targetReady}/${targetTotal} skills ready for ${targetLabel}`
+        : `${ready}/${total} AI skills portable-ready`;
+
+  const description = targetComplete
+    ? `All ${targetTotal} skills are discoverable and structurally ready for ${targetLabel}.`
+    : portableReady
+      ? `${ready}/${total} global skills are in shared format with no drift.`
+      : target
+        ? `${targetAuto} can be fixed automatically; ${targetManual} need manual attention before moving to ${targetLabel}.`
+        : `${total} global skills found in ${agentLabel}. ${ready} are currently portable-ready.`;
 
   const og = new URL('/api/og', origin);
-  og.searchParams.set('v', '3');
-  og.searchParams.set('score', singleAgent ? 'na' : String(score));
+  og.searchParams.set('v', '5');
+  og.searchParams.set('score', score === null ? 'na' : String(score));
   og.searchParams.set('total', String(total));
   og.searchParams.set('portable', String(portable));
-  og.searchParams.set('shared', String(shared));
+  og.searchParams.set('ready', String(ready));
   og.searchParams.set('drift', String(drift));
   og.searchParams.set('agents', agents.join(','));
+  if (target) {
+    og.searchParams.set('target', target);
+    og.searchParams.set('targetReady', String(targetReady));
+    og.searchParams.set('targetTotal', String(targetTotal));
+    og.searchParams.set('targetAuto', String(targetAuto));
+    og.searchParams.set('targetManual', String(targetManual));
+  }
 
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
-  const xText = portableReady
-    ? `I made my AI setup 100% portable-ready. ${shared}/${total} skills are now in shared format. Check yours:`
-    : (singleAgent
-      ? `I found ${total} AI skills in my ${agentLabel} setup. ${shared}/${total} are in a shared cross-agent format. Check yours:`
-      : `My AI setup is ${score}% portable across ${agentLabel}. ${portable}/${total} skills travel cleanly. Check yours:`);
-  const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}&url=${encodeURIComponent(canonical)}`;
 
-  const postText = portableReady
-    ? `I made my AI setup 100% portable-ready.\n\n${shared}/${total} global skills are now in shared format, with ${drift} drifted copies.\n\nCheck yours: ${canonical}`
-    : (singleAgent
-      ? `I found ${total} AI skills in my ${agentLabel} setup.\n\n${shared}/${total} are currently in a shared cross-agent format.\n\nCheck yours: ${canonical}`
-      : `My AI setup is ${score}% portable across ${agentLabel}.\n\n${portable}/${total} skills travel cleanly and ${drift} have drifted copies.\n\nCheck yours: ${canonical}`);
+  const shareSentence = targetComplete
+    ? `I got all ${targetTotal} of my AI skills ready for ${targetLabel}.`
+    : `I made my AI setup 100% portable-ready. ${ready}/${total} skills are now in shared format.`;
 
-  const hero = portableReady ? '100%' : (singleAgent ? `${shared} / ${total}` : `${score}%`);
-  const heroLabel = portableReady ? 'PORTABLE-READY' : (singleAgent ? 'skills in shared format' : 'portable across my agents');
+  const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareSentence + ' Check yours:')}&url=${encodeURIComponent(canonical)}`;
+  const postText = `${shareSentence}\n\nCheck yours: ${canonical}`;
+
+  const hero = target
+    ? `${targetReady} / ${targetTotal}`
+    : portableReady
+      ? '100%'
+      : `${ready} / ${total}`;
+
+  const heroLabel = target
+    ? `ready for ${targetLabel}`
+    : portableReady
+      ? 'PORTABLE-READY'
+      : 'skills portable-ready';
+
+  const badge = new URL('/api/badge', origin);
+  if (target) badge.searchParams.set('target', target);
+  badge.searchParams.set('ready', String(target ? targetReady : ready));
+  badge.searchParams.set('total', String(target ? targetTotal : total));
+  const badgeMarkdown = `[![Agent Portability](${badge.toString()})](${canonical})`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -128,17 +178,21 @@ export default function handler(req, res) {
 <body>
 <div class="wrap">
   <div class="card">
-    <div class="eyebrow">AGENT PORTABILITY CHECK</div>
-    <h1>How portable is my AI setup?</h1>
+    <div class="eyebrow">${target ? 'MIGRATION CHECK' : 'AGENT PORTABILITY CHECK'}</div>
+    <h1>${target ? `Ready for ${esc(targetLabel)}?` : 'How portable is my AI setup?'}</h1>
 
     <div class="hero">${esc(hero)}</div>
     <div class="hero-label">${esc(heroLabel)}</div>
     <div class="context">${esc(agentLabel)} setup · ${total} global skills</div>
 
     <div class="stats">
-      <span class="pill">${shared} shared-format</span>
-      <span class="pill">${drift} drifted</span>
-      ${singleAgent ? '<span class="pill">1 agent detected</span>' : `<span class="pill">${portable} / ${total} cross-agent</span>`}
+      ${target ? `
+        <span class="pill">${targetAuto} auto-fix</span>
+        <span class="pill">${targetManual} manual</span>
+      ` : `
+        <span class="pill">${ready} portable-ready</span>
+        <span class="pill">${drift} drifted</span>
+      `}
     </div>
 
     <div class="insight">${esc(description)}</div>
@@ -149,26 +203,27 @@ export default function handler(req, res) {
         <button id="copyPost" class="primary">Copy post text</button>
         <a id="linkedin" class="secondary" href="${esc(linkedin)}" target="_blank" rel="noopener">Open LinkedIn</a>
         <a id="xshare" class="secondary" href="${esc(xUrl)}" target="_blank" rel="noopener">Share on X</a>
+        <button id="copyBadge" class="secondary">Copy README badge</button>
         <button id="copy" class="secondary">Copy link</button>
       </div>
       <div class="cta">
         <div>
-          <h2>What does yours look like?</h2>
-          <p class="muted">One local command. Skill contents stay on your machine.</p>
+          <h2>Challenge a teammate</h2>
+          <p class="muted">Their scan keeps skill contents on their machine.</p>
         </div>
         <a id="check" class="primary" href="${esc(checkUrl)}">Check yours →</a>
       </div>
     ` : `
       <div class="insight">
         <strong>This is the before state.</strong><br>
-        The fixer will preview changes first, keep your original skills, avoid overwrites, then rescan.
+        The CLI can safely fix location/discovery issues. Conflicts and missing files stay manual.
       </div>
       <div class="copybox" id="fixcommand">${esc(fixCommand)}</div>
       <div class="actions">
         <button id="copyFix" class="primary">Copy fix command</button>
         <button id="copy" class="secondary">Copy result link</button>
       </div>
-      <p class="muted" id="fixhint" style="margin-top:12px">Paste the copied command into Terminal. The CLI will ask before changing anything.</p>
+      <p class="muted" id="fixhint" style="margin-top:12px">Paste the copied command into Terminal. The CLI previews changes before applying them.</p>
     `}
   </div>
 </div>
@@ -176,6 +231,7 @@ export default function handler(req, res) {
 const referralId = ${JSON.stringify(ref)};
 const postText = ${JSON.stringify(postText)};
 const fixCommand = ${JSON.stringify(fixCommand)};
+const badgeMarkdown = ${JSON.stringify(badgeMarkdown)};
 const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
 localStorage.setItem('apc_web_id', anon);
 
@@ -200,16 +256,18 @@ const xEl = document.getElementById('xshare');
 const checkEl = document.getElementById('check');
 const copyFixEl = document.getElementById('copyFix');
 const copyPostEl = document.getElementById('copyPost');
+const copyBadgeEl = document.getElementById('copyBadge');
 const copyEl = document.getElementById('copy');
 
 if (linkedinEl) linkedinEl.addEventListener('click',()=>track('apc_linkedin_share_clicked',{share_surface:'linkedin'}));
 if (xEl) xEl.addEventListener('click',()=>track('apc_x_share_clicked',{share_surface:'x'}));
 if (checkEl) checkEl.addEventListener('click',()=>track('apc_check_yours_clicked'));
+
 if (copyFixEl) copyFixEl.addEventListener('click',async()=>{
   await navigator.clipboard.writeText(fixCommand);
   copyFixEl.textContent='Copied — paste in Terminal';
   const hint = document.getElementById('fixhint');
-  if (hint) hint.textContent='Now paste into Terminal and press Enter. The CLI will preview the safe changes before applying them.';
+  if (hint) hint.textContent='Now paste into Terminal and press Enter. The CLI will preview safe changes before applying them.';
   track('apc_fix_command_copied');
 });
 
@@ -217,6 +275,12 @@ if (copyPostEl) copyPostEl.addEventListener('click',async()=>{
   await navigator.clipboard.writeText(postText);
   copyPostEl.textContent='Post text copied';
   track('apc_copy_link_clicked',{share_surface:'post_text'});
+});
+
+if (copyBadgeEl) copyBadgeEl.addEventListener('click',async()=>{
+  await navigator.clipboard.writeText(badgeMarkdown);
+  copyBadgeEl.textContent='Badge copied';
+  track('apc_badge_copied',{share_surface:'readme_badge'});
 });
 
 if (copyEl) copyEl.addEventListener('click',async()=>{
