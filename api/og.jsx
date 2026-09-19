@@ -26,12 +26,16 @@ export default function handler(req) {
   const agents = cleanAgents(req.query?.agents);
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const singleAgent = score === null;
+  const readiness = total > 0 ? Math.round(100 * shared / total) : null;
+  const portableReady = singleAgent && readiness === 100;
 
-  const hero = singleAgent ? `${shared}/${total}` : `${score}%`;
-  const heroLabel = singleAgent ? 'skills in shared format' : 'portable';
-  const sub = singleAgent
-    ? `${total} global skills found in ${agentLabel}`
-    : `${portable} / ${total} skills travel across ${agentLabel}`;
+  const hero = portableReady ? '100%' : (singleAgent ? `${shared}/${total}` : `${score}%`);
+  const heroLabel = portableReady ? 'PORTABLE-READY' : (singleAgent ? 'skills in shared format' : 'portable');
+  const sub = portableReady
+    ? `${shared}/${total} skills are now in shared format · ${agentLabel}`
+    : (singleAgent
+      ? `${total} global skills found in ${agentLabel}`
+      : `${portable} / ${total} skills travel across ${agentLabel}`);
 
   return new ImageResponse(
     <div style={{
