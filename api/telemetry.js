@@ -16,6 +16,7 @@ const ALLOWED_EVENTS = new Set([
   'apc_fix_command_copied',
   'apc_fix_applied',
   'apc_portable_ready_achieved',
+  'apc_badge_copied',
 ]);
 
 const ALLOWED_PROPERTIES = new Set([
