@@ -124,7 +124,7 @@ function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } =
   console.log(`Ready                ${result.summary.ready}`);
   console.log(`Auto-fix             ${result.summary.autoFix}`);
   console.log(`Manual attention     ${result.summary.manual}`);
-  console.log(`Ready now            ${result.readyPercent === null ? 'N/A' : `${result.readyPercent}%`}`);
+  console.log(`Package-ready        ${result.readyPercent === null ? 'N/A' : `${result.readyPercent}%`}`);
   if (!result.targetInstalled) {
     console.log(`Mode                 migration simulation (target not installed)`);
   }
@@ -251,7 +251,7 @@ async function main() {
         if (targetReport) {
           printTargetCompatibility(targetReport, { heading: 'AFTER FIX' });
           if (targetReport.summary.autoFix === 0 && targetReport.summary.manual === 0) {
-            console.log(`🏆 READY FOR ${targetReport.targetLabel.toUpperCase()}`);
+            console.log(`🏆 ALL SKILLS READY FOR ${targetReport.targetLabel.toUpperCase()}`);
           }
         }
         if (after === 100) console.log('🏆 100% PORTABLE-READY');
