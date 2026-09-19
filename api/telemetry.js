@@ -12,6 +12,9 @@ const ALLOWED_EVENTS = new Set([
   'apc_analytics_enabled',
   'apc_referred_scan_completed',
   'apc_health_check',
+  'apc_fix_previewed',
+  'apc_fix_applied',
+  'apc_portable_ready_achieved',
 ]);
 
 const ALLOWED_PROPERTIES = new Set([
