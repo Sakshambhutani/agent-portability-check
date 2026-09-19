@@ -44,9 +44,10 @@
 <script>
 const params = new URLSearchParams(location.search);
 const ref = (params.get('ref') || '').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
-const command = 'npx github:Sakshambhutani/agent-portability-check' + (ref ? ' --ref ' + ref : '');
+const wantsFix = params.get('fix') === '1';
+const command = 'npx github:Sakshambhutani/agent-portability-check' + (wantsFix ? ' --fix' : '') + (ref ? ' --ref ' + ref : '');
 document.getElementById('command').textContent = command;
-if (ref) document.getElementById('refbox').style.display='block';
+if (ref || wantsFix) { document.getElementById('refbox').style.display='block'; document.getElementById('refbox').textContent = wantsFix ? 'Make your setup portable-ready, then rescan and unlock the share card.' : 'Someone shared their result with you. Run the command below to compare yours.'; }
 const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
 localStorage.setItem('apc_web_id', anon);
 async function track(event) {
