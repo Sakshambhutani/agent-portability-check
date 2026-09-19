@@ -2,35 +2,51 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+
+const HARNESS_META = {
+  codex: {
+    label: 'Codex',
+    commands: ['codex'],
+    vscodeExtensions: ['openai.chatgpt'],
+  },
+  claude: {
+    label: 'Claude Code',
+    commands: ['claude'],
+    vscodeExtensions: ['anthropic.claude-code'],
+  },
+  cursor: {
+    label: 'Cursor',
+    commands: ['agent', 'cursor'],
+    macApps: ['/Applications/Cursor.app', '~/Applications/Cursor.app'],
+    windowsApps: [
+      '%LOCALAPPDATA%/Programs/Cursor/Cursor.exe',
+      '%PROGRAMFILES%/Cursor/Cursor.exe',
+    ],
+  },
+};
 
 const SKILL_ROOTS = [
-  { owner: 'portable', scope: 'project', rel: '.agents/skills' },
-  { owner: 'claude', scope: 'project', rel: '.claude/skills' },
-  { owner: 'cursor', scope: 'project', rel: '.cursor/skills' },
-  { owner: 'codex', scope: 'project', rel: '.codex/skills' },
-];
-
-const HOME_SKILL_ROOTS = [
-  { owner: 'portable', scope: 'user', rel: '.agents/skills' },
-  { owner: 'claude', scope: 'user', rel: '.claude/skills' },
-  { owner: 'cursor', scope: 'user', rel: '.cursor/skills' },
-  { owner: 'codex', scope: 'user', rel: '.codex/skills' },
+  { owner: 'portable', rel: '.agents/skills' },
+  { owner: 'claude', rel: '.claude/skills' },
+  { owner: 'cursor', rel: '.cursor/skills' },
+  { owner: 'codex', rel: '.codex/skills' },
 ];
 
 const PROJECT_INSTRUCTIONS = [
-  { owner: 'shared', scope: 'project', rel: 'AGENTS.md', compatibleWith: ['codex', 'cursor'] },
-  { owner: 'claude', scope: 'project', rel: 'CLAUDE.md', compatibleWith: ['claude'] },
+  { owner: 'shared', rel: 'AGENTS.md' },
+  { owner: 'claude', rel: 'CLAUDE.md' },
 ];
 
 const HOME_INSTRUCTIONS = [
-  { owner: 'claude', scope: 'user', rel: '.claude/CLAUDE.md', compatibleWith: ['claude'] },
-  { owner: 'codex', scope: 'user', rel: '.codex/AGENTS.md', compatibleWith: ['codex'] },
+  { owner: 'codex', rel: '.codex/AGENTS.md' },
+  { owner: 'claude', rel: '.claude/CLAUDE.md' },
 ];
 
-const HARNESS_DIRS = {
-  claude: ['.claude'],
-  codex: ['.codex'],
-  cursor: ['.cursor'],
+const CONFIG_DIRS = {
+  codex: '.codex',
+  claude: '.claude',
+  cursor: '.cursor',
 };
 
 function exists(file) {
@@ -43,6 +59,86 @@ function readText(file) {
 
 function hashText(text) {
   return crypto.createHash('sha256').update(text).digest('hex').slice(0, 12);
+}
+
+function expandPath(input, home) {
+  return input
+    .replace(/^~(?=\/|$)/, home)
+    .replace(/%LOCALAPPDATA%/gi, process.env.LOCALAPPDATA || '')
+    .replace(/%PROGRAMFILES%/gi, process.env.PROGRAMFILES || '');
+}
+
+function commandExists(command) {
+  const finder = process.platform === 'win32' ? 'where' : 'which';
+  try {
+    const result = spawnSync(finder, [command], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 1500,
+    });
+    return result.status === 0 && Boolean(result.stdout?.trim());
+  } catch {
+    return false;
+  }
+}
+
+function extensionRoots(home) {
+  const roots = [
+    { editor: 'VS Code', path: path.join(home, '.vscode/extensions') },
+    { editor: 'VS Code Insiders', path: path.join(home, '.vscode-insiders/extensions') },
+    { editor: 'Cursor', path: path.join(home, '.cursor/extensions') },
+  ];
+  return roots;
+}
+
+function extensionMatches(root, ids) {
+  if (!exists(root.path)) return [];
+  let names = [];
+  try { names = fs.readdirSync(root.path); } catch { return []; }
+  const matches = [];
+  for (const id of ids || []) {
+    for (const name of names) {
+      if (name === id || name.startsWith(id + '-')) {
+        matches.push({ type: 'ide-extension', detail: `${root.editor}: ${name}` });
+      }
+    }
+  }
+  return matches;
+}
+
+export function detectInstalledHarnesses({ home = os.homedir(), platform = process.platform, commandCheck = commandExists } = {}) {
+  home = path.resolve(home);
+  const detected = [];
+
+  for (const [key, meta] of Object.entries(HARNESS_META)) {
+    const evidence = [];
+
+    for (const command of meta.commands || []) {
+      if (commandCheck(command)) evidence.push({ type: 'command', detail: command });
+    }
+
+    for (const root of extensionRoots(home)) {
+      evidence.push(...extensionMatches(root, meta.vscodeExtensions || []));
+    }
+
+    if (platform === 'darwin') {
+      for (const app of meta.macApps || []) {
+        const expanded = expandPath(app, home);
+        if (exists(expanded)) evidence.push({ type: 'app', detail: expanded });
+      }
+    }
+
+    if (platform === 'win32') {
+      for (const app of meta.windowsApps || []) {
+        const expanded = expandPath(app, home);
+        if (expanded && exists(expanded)) evidence.push({ type: 'app', detail: expanded });
+      }
+    }
+
+    if (evidence.length) detected.push({ key, label: meta.label, evidence });
+  }
+
+  return detected;
 }
 
 function walkSkillFiles(root) {
@@ -72,23 +168,23 @@ function skillName(file) {
   return path.basename(path.dirname(file));
 }
 
-function relativeDisplay(file, cwd, home) {
-  if (file.startsWith(cwd + path.sep) || file === cwd) return './' + path.relative(cwd, file).replaceAll(path.sep, '/');
-  if (file.startsWith(home + path.sep) || file === home) return '~/' + path.relative(home, file).replaceAll(path.sep, '/');
+function displayPath(file, cwd, home) {
+  if (file === cwd || file.startsWith(cwd + path.sep)) return './' + path.relative(cwd, file).replaceAll(path.sep, '/');
+  if (file === home || file.startsWith(home + path.sep)) return '~/' + path.relative(home, file).replaceAll(path.sep, '/');
   return file;
 }
 
-function gatherSkills(base, roots, cwd, home) {
+function gatherSkills(base, scope, cwd, home) {
   const skills = [];
-  for (const spec of roots) {
+  for (const spec of SKILL_ROOTS) {
     const root = path.join(base, spec.rel);
     for (const file of walkSkillFiles(root)) {
       const content = readText(file) || '';
       skills.push({
         name: skillName(file),
         owner: spec.owner,
-        scope: spec.scope,
-        path: relativeDisplay(file, cwd, home),
+        scope,
+        path: displayPath(file, cwd, home),
         hash: hashText(content),
         bytes: Buffer.byteLength(content),
       });
@@ -97,7 +193,7 @@ function gatherSkills(base, roots, cwd, home) {
   return skills;
 }
 
-function gatherInstructions(base, specs, cwd, home) {
+function gatherInstructions(base, scope, specs, cwd, home) {
   const out = [];
   for (const spec of specs) {
     const file = path.join(base, spec.rel);
@@ -105,9 +201,8 @@ function gatherInstructions(base, specs, cwd, home) {
     const content = readText(file) || '';
     out.push({
       owner: spec.owner,
-      scope: spec.scope,
-      compatibleWith: spec.compatibleWith,
-      path: relativeDisplay(file, cwd, home),
+      scope,
+      path: displayPath(file, cwd, home),
       hash: hashText(content),
       bytes: Buffer.byteLength(content),
     });
@@ -116,53 +211,44 @@ function gatherInstructions(base, specs, cwd, home) {
 }
 
 function gatherCursorRules(cwd, home) {
-  const roots = [path.join(cwd, '.cursor/rules'), path.join(home, '.cursor/rules')];
+  const roots = [
+    { scope: 'project', root: path.join(cwd, '.cursor/rules') },
+    { scope: 'global', root: path.join(home, '.cursor/rules') },
+  ];
   const rules = [];
-  for (const root of roots) {
-    if (!exists(root)) continue;
-    let files = [];
-    try { files = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
-    for (const entry of files) {
+  for (const item of roots) {
+    if (!exists(item.root)) continue;
+    let entries = [];
+    try { entries = fs.readdirSync(item.root, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.mdc')) continue;
-      const file = path.join(root, entry.name);
+      const file = path.join(item.root, entry.name);
       const content = readText(file) || '';
-      rules.push({ path: relativeDisplay(file, cwd, home), hash: hashText(content), bytes: Buffer.byteLength(content) });
+      rules.push({
+        owner: 'cursor',
+        scope: item.scope,
+        path: displayPath(file, cwd, home),
+        hash: hashText(content),
+        bytes: Buffer.byteLength(content),
+      });
     }
   }
   return rules;
 }
 
-function detectHarnesses(cwd, home, skills, instructions, cursorRules) {
-  const evidence = {
-    claude: [],
-    codex: [],
-    cursor: [],
-  };
-
-  for (const harness of Object.keys(HARNESS_DIRS)) {
-    for (const rel of HARNESS_DIRS[harness]) {
-      if (exists(path.join(cwd, rel))) evidence[harness].push(`./${rel}`);
-      if (exists(path.join(home, rel))) evidence[harness].push(`~/${rel}`);
-    }
+function gatherConfigFootprints(cwd, home) {
+  const footprints = [];
+  for (const [key, rel] of Object.entries(CONFIG_DIRS)) {
+    const label = HARNESS_META[key].label;
+    const projectPath = path.join(cwd, rel);
+    const globalPath = path.join(home, rel);
+    if (exists(projectPath)) footprints.push({ key, label, scope: 'project', path: displayPath(projectPath, cwd, home) });
+    if (exists(globalPath)) footprints.push({ key, label, scope: 'global', path: displayPath(globalPath, cwd, home) });
   }
-
-  for (const skill of skills) {
-    if (skill.owner in evidence) evidence[skill.owner].push(skill.path);
-  }
-  for (const instruction of instructions) {
-    if (instruction.owner in evidence) evidence[instruction.owner].push(instruction.path);
-  }
-  for (const rule of cursorRules) evidence.cursor.push(rule.path);
-
-  const labels = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor' };
-  const activeHarnesses = Object.entries(evidence)
-    .filter(([, items]) => items.length > 0)
-    .map(([key]) => labels[key]);
-
-  return { activeHarnesses, harnessEvidence: evidence };
+  return footprints;
 }
 
-function analyzeSkillPortability(skills) {
+function analyzeScope(skills, installedKeys) {
   const byName = new Map();
   for (const skill of skills) {
     if (!byName.has(skill.name)) byName.set(skill.name, []);
@@ -174,104 +260,139 @@ function analyzeSkillPortability(skills) {
   const drift = [];
 
   for (const [name, copies] of byName) {
-    if (copies.length > 1) duplicates.push({ name, copies });
-
     const hashes = new Set(copies.map(c => c.hash));
-    if (hashes.size > 1) drift.push({ name, copies });
+    const hasDrift = hashes.size > 1;
+    const hasPortableCopy = copies.some(c => c.owner === 'portable');
+    const nativeOwners = new Set(copies.filter(c => c.owner !== 'portable').map(c => c.owner));
 
-    const owners = new Set(copies.filter(c => c.owner !== 'portable').map(c => c.owner));
-    const hasPortableRoot = copies.some(c => c.owner === 'portable');
-    const identicalAcrossHarnesses = hashes.size === 1 && owners.size >= 2;
+    if (copies.length > 1) duplicates.push({ name, copies });
+    if (hasDrift) drift.push({ name, copies });
 
-    let portability = 0;
-    let reason = 'only one harness-specific copy';
-    if (hasPortableRoot) {
-      portability = 1;
-      reason = 'stored in a shared .agents/skills location';
-    } else if (identicalAcrossHarnesses && owners.size >= 3) {
-      portability = 1;
-      reason = 'identical copies exist across all three supported harnesses';
-    } else if (identicalAcrossHarnesses && owners.size === 2) {
-      portability = 0.5;
-      reason = 'identical copies exist across two harnesses';
-    } else if (hashes.size > 1) {
-      portability = 0;
-      reason = 'same-name copies have drifted';
+    let portableAcrossInstalled = false;
+    let reason = 'Only one harness-specific copy found.';
+
+    if (installedKeys.length >= 2) {
+      const everyInstalledHasCopy = installedKeys.every(key => nativeOwners.has(key));
+      if (!hasDrift && hasPortableCopy) {
+        portableAcrossInstalled = true;
+        reason = 'A shared .agents/skills copy exists.';
+      } else if (!hasDrift && everyInstalledHasCopy) {
+        portableAcrossInstalled = true;
+        reason = 'Identical copies exist for every installed agent.';
+      } else if (hasDrift) {
+        reason = 'Same-name copies differ.';
+      } else {
+        const present = installedKeys.filter(key => nativeOwners.has(key));
+        reason = present.length
+          ? `Present for ${present.map(k => HARNESS_META[k].label).join(', ')}, but not every installed agent.`
+          : 'Not found in the native location of any installed agent.';
+      }
+    } else if (hasPortableCopy && !hasDrift) {
+      reason = 'Shared-format skill found; cross-agent score requires at least two installed agents.';
+    } else if (hasDrift) {
+      reason = 'Same-name copies differ.';
     }
 
-    statuses.push({ name, copies, portability, reason });
+    statuses.push({
+      name,
+      copies,
+      portableAcrossInstalled,
+      sharedFormat: hasPortableCopy && !hasDrift,
+      drifted: hasDrift,
+      nativeOwners: [...nativeOwners],
+      reason,
+    });
   }
 
   const totalSkills = statuses.length;
-  const score = totalSkills === 0
-    ? null
-    : Math.round(100 * statuses.reduce((sum, s) => sum + s.portability, 0) / totalSkills);
+  const portableAcrossInstalled = statuses.filter(s => s.portableAcrossInstalled).length;
+  const sharedFormatSkills = statuses.filter(s => s.sharedFormat).length;
+  const score = installedKeys.length >= 2 && totalSkills > 0
+    ? Math.round(100 * portableAcrossInstalled / totalSkills)
+    : null;
 
-  const crossHarnessSkills = statuses.filter(s => s.portability > 0).length;
-  const fullyPortableSkills = statuses.filter(s => s.portability === 1).length;
-  const harnessSpecificSkills = statuses
-    .filter(s => s.portability === 0 && s.copies.every(c => c.owner !== 'portable'))
-    .map(s => ({ name: s.name, owner: s.copies[0]?.owner || 'unknown', reason: s.reason }));
+  const onlyByHarness = {};
+  for (const key of installedKeys) onlyByHarness[key] = 0;
+  for (const status of statuses) {
+    if (status.portableAcrossInstalled || status.sharedFormat || status.drifted) continue;
+    const present = installedKeys.filter(k => status.nativeOwners.includes(k));
+    if (present.length === 1) onlyByHarness[present[0]] += 1;
+  }
 
   return {
     score,
     totalSkills,
-    crossHarnessSkills,
-    fullyPortableSkills,
-    skillPortability: statuses,
+    portableAcrossInstalled,
+    sharedFormatSkills,
+    onlyByHarness,
     duplicates,
     drift,
-    harnessSpecificSkills,
+    statuses,
   };
 }
 
-function buildFindings(skillAnalysis, cursorRules, activeHarnesses) {
+function buildFindings(globalAnalysis, projectAnalysis, installedHarnesses, footprints) {
   const findings = [];
-  const { totalSkills, crossHarnessSkills, harnessSpecificSkills, drift } = skillAnalysis;
+  const installedKeys = installedHarnesses.map(h => h.key);
 
-  if (totalSkills > 0 && crossHarnessSkills === 0) {
-    findings.push({ level: 'high', text: `None of your ${totalSkills} skills are currently reusable across multiple harnesses.` });
-  } else if (harnessSpecificSkills.length) {
-    findings.push({ level: 'medium', text: `${harnessSpecificSkills.length} skill${harnessSpecificSkills.length === 1 ? '' : 's'} still live only in one harness-specific location.` });
+  if (installedKeys.length < 2) {
+    const label = installedHarnesses[0]?.label || 'No supported agent';
+    findings.push({
+      level: 'info',
+      text: installedKeys.length === 1
+        ? `Only ${label} is detected, so a cross-agent portability score is not shown.`
+        : 'No supported agent installation was detected, so a cross-agent portability score is not shown.',
+    });
+  } else if (globalAnalysis.totalSkills > 0) {
+    findings.push({
+      level: globalAnalysis.portableAcrossInstalled === globalAnalysis.totalSkills ? 'good' : 'medium',
+      text: `${globalAnalysis.portableAcrossInstalled} of ${globalAnalysis.totalSkills} global skills are available across every detected agent.`,
+    });
   }
-  if (drift.length) findings.push({ level: 'high', text: `${drift.length} skill${drift.length === 1 ? '' : 's'} have same-name copies with different contents.` });
-  if (cursorRules.length) findings.push({ level: 'medium', text: `${cursorRules.length} Cursor rule${cursorRules.length === 1 ? '' : 's'} may need an equivalent instruction when you switch harnesses.` });
-  if (activeHarnesses.length === 1) findings.push({ level: 'info', text: `Only ${activeHarnesses[0]} has a harness-specific footprint in the locations checked.` });
-  if (totalSkills === 0) findings.push({ level: 'info', text: 'No skills were found in the locations this V0.2 understands, so no portability score was calculated.' });
-  if (!findings.length) findings.push({ level: 'good', text: 'No obvious skill-portability problems found in the locations this V0.2 understands.' });
+
+  if (globalAnalysis.drift.length) findings.push({ level: 'high', text: `${globalAnalysis.drift.length} global skill${globalAnalysis.drift.length === 1 ? '' : 's'} have same-name copies with different contents.` });
+  if (projectAnalysis.drift.length) findings.push({ level: 'high', text: `${projectAnalysis.drift.length} project skill${projectAnalysis.drift.length === 1 ? '' : 's'} have same-name copies with different contents.` });
+
+  const staleFootprints = footprints.filter(f => !installedKeys.includes(f.key));
+  if (staleFootprints.length) findings.push({ level: 'info', text: `${staleFootprints.length} config footprint${staleFootprints.length === 1 ? '' : 's'} belong to agents that were not detected as installed.` });
 
   return findings;
 }
 
-export function scan({ cwd = process.cwd(), home = os.homedir() } = {}) {
+export function scan({ cwd = process.cwd(), home = os.homedir(), installedHarnesses: installedOverride } = {}) {
   cwd = path.resolve(cwd);
   home = path.resolve(home);
 
-  const skills = [
-    ...gatherSkills(cwd, SKILL_ROOTS, cwd, home),
-    ...gatherSkills(home, HOME_SKILL_ROOTS, cwd, home),
-  ];
+  const installedHarnesses = installedOverride
+    ? installedOverride.map(key => ({ key, label: HARNESS_META[key]?.label || key, evidence: [{ type: 'test-override', detail: key }] }))
+    : detectInstalledHarnesses({ home });
+  const installedKeys = installedHarnesses.map(h => h.key);
+
+  const globalSkills = gatherSkills(home, 'global', cwd, home);
+  const projectSkills = gatherSkills(cwd, 'project', cwd, home);
   const instructions = [
-    ...gatherInstructions(cwd, PROJECT_INSTRUCTIONS, cwd, home),
-    ...gatherInstructions(home, HOME_INSTRUCTIONS, cwd, home),
+    ...gatherInstructions(home, 'global', HOME_INSTRUCTIONS, cwd, home),
+    ...gatherInstructions(cwd, 'project', PROJECT_INSTRUCTIONS, cwd, home),
   ];
   const cursorRules = gatherCursorRules(cwd, home);
-  const skillAnalysis = analyzeSkillPortability(skills);
-  const { activeHarnesses, harnessEvidence } = detectHarnesses(cwd, home, skills, instructions, cursorRules);
-  const findings = buildFindings(skillAnalysis, cursorRules, activeHarnesses);
+  const configFootprints = gatherConfigFootprints(cwd, home);
+
+  const globalAnalysis = analyzeScope(globalSkills, installedKeys);
+  const projectAnalysis = analyzeScope(projectSkills, installedKeys);
+  const findings = buildFindings(globalAnalysis, projectAnalysis, installedHarnesses, configFootprints);
 
   return {
-    version: 2,
+    version: 3,
     generatedAt: new Date().toISOString(),
     cwd,
     privacy: 'local-only',
-    scoreDefinition: 'Average skill portability: shared location = 100%, identical copies in two harnesses = 50%, one harness or drifted copies = 0%.',
-    skills,
+    installedHarnesses,
+    configFootprints,
+    global: { skills: globalSkills, ...globalAnalysis },
+    project: { skills: projectSkills, ...projectAnalysis },
     instructions,
     cursorRules,
-    activeHarnesses,
-    harnessEvidence,
     findings,
-    ...skillAnalysis,
+    scoreDefinition: 'Global score = share of unique global skills available across every detected agent. No score is shown unless at least two supported agents are detected.',
   };
 }
