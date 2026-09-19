@@ -1,0 +1,64 @@
+name: ui-screenshot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ui-check]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install browser
+        run: |
+          npx -y playwright@1.55.0 install --with-deps chromium
+
+      - name: Wait for production page
+        run: |
+          set -euo pipefail
+          for attempt in {1..18}; do
+            page="$(curl -fsS https://agent-portability-check.vercel.app/ || true)"
+            if echo "$page" | grep -q 'Moving to Cursor Cloud'; then
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
+
+      - name: Capture landing
+        run: |
+          npx -y playwright@1.55.0 screenshot \
+            --browser chromium \
+            --viewport-size "1440,1100" \
+            --full-page \
+            https://agent-portability-check.vercel.app/ \
+            landing.png
+
+      - name: Capture before state
+        run: |
+          npx -y playwright@1.55.0 screenshot \
+            --browser chromium \
+            --viewport-size "1440,1100" \
+            --full-page \
+            'https://agent-portability-check.vercel.app/r/ui-before?v=6&score=na&total=7&portable=0&ready=2&shared=2&drift=1&agents=codex&target=claude&targetReady=2&targetTotal=7&targetAuto=3&targetManual=2&targetContext=1&targetDeps=1&runtime=local&targetComplete=0' \
+            before.png
+
+      - name: Capture trophy
+        run: |
+          npx -y playwright@1.55.0 screenshot \
+            --browser chromium \
+            --viewport-size "1440,1200" \
+            --full-page \
+            'https://agent-portability-check.vercel.app/r/ui-trophy?v=6&score=na&total=7&portable=0&ready=7&shared=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1' \
+            trophy.png
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: apc-ui-screenshots
+          path: |
+            landing.png
+            before.png
+            trophy.png
+          retention-days: 3
