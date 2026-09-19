@@ -8,6 +8,8 @@ create table if not exists public.apc_teams (
   owner_user_id uuid not null references auth.users(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 80),
   invite_code text not null unique check (char_length(invite_code) between 8 and 40),
+  target text check (target in ('claude','codex','cursor') or target is null),
+  runtime text not null default 'local' check (runtime in ('local','cloud')),
   created_at timestamptz not null default now()
 );
 
