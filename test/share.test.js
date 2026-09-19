@@ -9,7 +9,7 @@ test('normalizes inbound referral ids', () => {
 test('creates a self-contained share URL with summary only', () => {
   const report = {
     installedHarnesses: [{ key: 'codex' }, { key: 'claude' }],
-    global: { score: 63, totalSkills: 8, portableAcrossInstalled: 5, drift: [] },
+    global: { score: 63, totalSkills: 8, portableAcrossInstalled: 5, portableReadySkills: 6, sharedFormatSkills: 6, drift: [] },
   };
   const info = createShareInfo(report, {
     publicUrl: 'https://example.com',
@@ -30,4 +30,35 @@ test('returns null without a valid public URL', () => {
     global: { score: null, totalSkills: 0, portableAcrossInstalled: 0, drift: [] },
   };
   assert.equal(createShareInfo(report, { publicUrl: '' }), null);
+});
+
+test('includes target migration outcome without local details', () => {
+  const report = {
+    installedHarnesses: [{ key: 'codex' }],
+    global: {
+      score: null,
+      totalSkills: 7,
+      portableAcrossInstalled: 0,
+      portableReadySkills: 7,
+      sharedFormatSkills: 7,
+      drift: [],
+    },
+  };
+  const targetCompatibility = {
+    target: 'claude',
+    summary: { total: 7, ready: 7, autoFix: 0, manual: 0 },
+  };
+
+  const info = createShareInfo(report, {
+    publicUrl: 'https://example.com',
+    referralId: 'ref456',
+    targetCompatibility,
+  });
+
+  assert.match(info.url, /target=claude/);
+  assert.match(info.url, /targetReady=7/);
+  assert.match(info.url, /targetTotal=7/);
+  assert.match(info.url, /targetAuto=0/);
+  assert.match(info.url, /targetManual=0/);
+  assert.equal(info.url.includes('/Users/'), false);
 });
