@@ -80,3 +80,117 @@ test('Cursor requires the frontmatter name to match the skill folder', () => {
   assert.equal(target.summary.manual, 1);
   assert.match(target.skills[0].reason, /folder/i);
 });
+
+
+test('missing CLI dependency blocks local target readiness', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/release/SKILL.md'), skill('release', 'Run `jq --version` before release.'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'codex', {
+    cwd,
+    home,
+    commandCheck: command => command !== 'jq',
+  });
+
+  assert.equal(target.summary.manual, 1);
+  assert.match(target.skills[0].reason, /jq/);
+  assert.equal(target.skills[0].dependencies.commands[0].available, false);
+});
+
+test('missing environment variable blocks local target readiness', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/deploy/SKILL.md'), skill('deploy', 'Use $DEPLOY_TOKEN when deploying.'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'codex', {
+    cwd,
+    home,
+    env: {},
+  });
+
+  assert.equal(target.summary.manual, 1);
+  assert.match(target.skills[0].reason, /DEPLOY_TOKEN/);
+});
+
+test('explicit MCP tool reference requires the server on the target harness', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/observe/SKILL.md'), skill('observe', 'Use mcp__datadog__search for incidents.'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const missing = analyzeTargetCompatibility(report, 'codex', {
+    cwd,
+    home,
+    mcpServers: { codex: [] },
+  });
+  assert.equal(missing.summary.manual, 1);
+  assert.match(missing.skills[0].reason, /datadog/);
+
+  const configured = analyzeTargetCompatibility(report, 'codex', {
+    cwd,
+    home,
+    mcpServers: { codex: ['datadog'] },
+  });
+  assert.equal(configured.summary.ready, 1);
+});
+
+test('Cursor Cloud flags global Agent Skills as local-only', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'cursor', {
+    cwd,
+    home,
+    runtime: 'cloud',
+  });
+
+  assert.equal(target.summary.manual, 1);
+  assert.equal(target.localOnlyRisks.length, 1);
+  assert.match(target.skills[0].reason, /Cloud/i);
+});
+
+test('Cursor Cloud accepts project Agent Skills from the repository', () => {
+  const { cwd, home } = fixture();
+  write(path.join(cwd, '.agents/skills/review/SKILL.md'), skill('review'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'cursor', {
+    cwd,
+    home,
+    runtime: 'cloud',
+  });
+
+  assert.equal(target.summary.ready, 1);
+  assert.equal(target.summary.manual, 0);
+});
+
+test('Cursor Cloud treats required environment variables as cloud secrets to configure', () => {
+  const { cwd, home } = fixture();
+  write(path.join(cwd, '.agents/skills/deploy/SKILL.md'), skill('deploy', 'Use ${DEPLOY_TOKEN} for deployment.'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'cursor', {
+    cwd,
+    home,
+    runtime: 'cloud',
+    env: { DEPLOY_TOKEN: 'present-locally' },
+  });
+
+  assert.equal(target.summary.manual, 1);
+  assert.match(target.skills[0].reason, /cloud secret/i);
+});
+
+test('harness-specific instructions are surfaced as context risks', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+  write(path.join(cwd, 'CLAUDE.md'), '# Claude-only conventions');
+  write(path.join(cwd, '.cursor/rules/quality.mdc'), 'Always run tests.');
+
+  const report = scan({ cwd, home, installedHarnesses: ['claude'] });
+  const target = analyzeTargetCompatibility(report, 'codex', { cwd, home });
+
+  assert.equal(target.contextRisks.length, 2);
+  assert.ok(target.contextRisks.some(risk => risk.path.endsWith('CLAUDE.md')));
+  assert.ok(target.contextRisks.some(risk => risk.path.endsWith('quality.mdc')));
+});
