@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
   try {
     const teams = await supabaseRest('apc_teams', {
-      query: `select=id,name,invite_code,created_at&invite_code=eq.${encodeURIComponent(code)}&limit=1`,
+      query: `select=id,name,invite_code,target,runtime,created_at&invite_code=eq.${encodeURIComponent(code)}&limit=1`,
     });
     const team = Array.isArray(teams) ? teams[0] : null;
     if (!team) return res.status(404).json({ error: 'team_not_found' });
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
       ok: true,
-      team: { name: team.name, invite_code: team.invite_code, created_at: team.created_at },
+      team: { name: team.name, invite_code: team.invite_code, target: team.target, runtime: team.runtime, created_at: team.created_at },
       leaderboard,
     });
   } catch (error) {
