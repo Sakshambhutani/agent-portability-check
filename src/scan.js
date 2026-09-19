@@ -268,27 +268,42 @@ function analyzeScope(skills, installedKeys) {
     if (copies.length > 1) duplicates.push({ name, copies });
     if (hasDrift) drift.push({ name, copies });
 
+    const availableToInstalled = (key) => {
+      // Codex and Cursor natively discover the shared Agent Skills root.
+      if (key === 'codex' || key === 'cursor') {
+        return hasPortableCopy || nativeOwners.has(key);
+      }
+      // Claude Code discovers ~/.claude/skills; a shared skill needs a Claude-side
+      // copy or adapter (the fixer creates an individual symlink when needed).
+      if (key === 'claude') {
+        return nativeOwners.has('claude');
+      }
+      return nativeOwners.has(key);
+    };
+
     let portableAcrossInstalled = false;
     let reason = 'Only one harness-specific copy found.';
 
     if (installedKeys.length >= 2) {
-      const everyInstalledHasCopy = installedKeys.every(key => nativeOwners.has(key));
-      if (!hasDrift && hasPortableCopy) {
+      const everyInstalledCanSeeIt = installedKeys.every(availableToInstalled);
+
+      if (!hasDrift && everyInstalledCanSeeIt) {
         portableAcrossInstalled = true;
-        reason = 'A shared .agents/skills copy exists.';
-      } else if (!hasDrift && everyInstalledHasCopy) {
-        portableAcrossInstalled = true;
-        reason = 'Identical copies exist for every installed agent.';
+        reason = hasPortableCopy
+          ? 'Shared-format skill is available to every installed agent.'
+          : 'Identical native copies exist for every installed agent.';
       } else if (hasDrift) {
         reason = 'Same-name copies differ.';
+      } else if (hasPortableCopy && installedKeys.includes('claude') && !nativeOwners.has('claude')) {
+        reason = 'Shared-format skill is ready for Codex/Cursor; Claude adapter is missing.';
       } else {
-        const present = installedKeys.filter(key => nativeOwners.has(key));
+        const present = installedKeys.filter(availableToInstalled);
         reason = present.length
-          ? `Present for ${present.map(k => HARNESS_META[k].label).join(', ')}, but not every installed agent.`
-          : 'Not found in the native location of any installed agent.';
+          ? `Available to ${present.map(k => HARNESS_META[k].label).join(', ')}, but not every installed agent.`
+          : 'Not available to any installed agent in a supported location.';
       }
     } else if (hasPortableCopy && !hasDrift) {
-      reason = 'Shared-format skill found; cross-agent score requires at least two installed agents.';
+      reason = 'Stored in the shared Agent Skills format.';
     } else if (hasDrift) {
       reason = 'Same-name copies differ.';
     }
@@ -307,6 +322,9 @@ function analyzeScope(skills, installedKeys) {
   const totalSkills = statuses.length;
   const portableAcrossInstalled = statuses.filter(s => s.portableAcrossInstalled).length;
   const sharedFormatSkills = statuses.filter(s => s.sharedFormat).length;
+  const portableReadyPercent = totalSkills > 0
+    ? Math.round(100 * sharedFormatSkills / totalSkills)
+    : null;
   const score = installedKeys.length >= 2 && totalSkills > 0
     ? Math.round(100 * portableAcrossInstalled / totalSkills)
     : null;
@@ -321,6 +339,7 @@ function analyzeScope(skills, installedKeys) {
 
   return {
     score,
+    portableReadyPercent,
     totalSkills,
     portableAcrossInstalled,
     sharedFormatSkills,
