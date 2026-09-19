@@ -28,6 +28,7 @@ const ALLOWED_PROPERTIES = new Set([
   'global_skill_count_bucket',
   'project_skill_count_bucket',
   'global_score_bucket',
+  'portable_ready_bucket',
   'global_drift_count_bucket',
   'project_drift_count_bucket',
   'has_cross_agent_score',
