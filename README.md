@@ -1,188 +1,196 @@
 # Agent Portability Check
 
-**Scan your AI setup, improve it, and make your skills portable-ready across agent tools.**
+**Switching AI agents? See which skills will carry over, what can be fixed automatically, and what needs manual attention.**
 
-Run:
+Public site: https://agent-portability-check.vercel.app
+
+## 10-second migration check
+
+```bash
+npx github:Sakshambhutani/agent-portability-check --target claude
+```
+
+Targets:
+
+```bash
+--target claude
+--target codex
+--target cursor
+```
+
+Example:
+
+```text
+TARGET COMPATIBILITY — Claude Code
+────────────────────────────────────
+Skills checked       7
+Ready                3
+Auto-fix             3
+Manual attention     1
+Package-ready        43%
+Mode                 migration simulation (target not installed)
+
+✕ incident-response — MANUAL
+  Missing companion file: scripts/check.sh
+
+⚡ deploy-prod — AUTO-FIX
+  The skill package is valid, but Claude Code cannot discover it
+  from its current location.
+  Fix: Add a Claude-discoverable adapter in ~/.claude/skills.
+
+✓ code-review — READY
+  Claude Code can already discover this valid skill package.
+```
+
+## Fix safe issues
+
+```bash
+npx github:Sakshambhutani/agent-portability-check --target claude --fix
+```
+
+The CLI previews the exact changes and asks before applying anything.
+
+Safe remediation can:
+
+- copy a canonical valid skill package into `~/.agents/skills`
+- preserve the **entire skill directory**, including scripts/references/assets
+- add a Claude-side discovery adapter when needed
+- leave original copies untouched
+- refuse to overwrite an existing target
+- refuse to auto-resolve drifted copies
+- refuse to auto-fix malformed skill packages or missing companion files
+- rescan after the fix
+
+Non-interactive use:
+
+```bash
+npx github:Sakshambhutani/agent-portability-check --target claude --fix --yes
+```
+
+## The product loop
+
+```text
+creator / community / shared result
+                 ↓
+        10-second target scan
+                 ↓
+       Ready / Auto-fix / Manual
+                 ↓
+                FIX
+                 ↓
+          all skills ready
+                 ↓
+             TROPHY
+           ↙        ↘
+      social post   README badge
+           ↓             ↓
+          more people discover
+```
+
+Low-readiness result pages lead with **Copy fix command**.
+
+Social sharing and the README badge become primary actions only after a defensible achievement:
+
+- **100% portable-ready**, or
+- **all skill packages ready for the selected target**
+
+## What "ready" means
+
+The target simulator checks **skill-package compatibility**, including:
+
+- target discovery location
+- valid `SKILL.md` frontmatter
+- `name`
+- `description`
+- lowercase kebab-case names
+- folder-name alignment
+- missing local companion files under `scripts/`, `references/`, and `assets/`
+- same-name drift
+- whether a location/discovery fix is safe to automate
+
+The result is:
+
+- **Ready**
+- **Auto-fix**
+- **Manual attention**
+
+See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the current harness assumptions and primary-source documentation.
+
+## What it does not guarantee
+
+A structurally ready skill package can still fail at runtime because of:
+
+- MCP tools/servers
+- environment variables or credentials
+- external CLIs/language runtimes
+- network access
+- permissions
+- model behavior
+- hidden runtime configuration
+- cloud-vs-local differences
+
+So the product says **"skills ready for Claude/Codex/Cursor"**, not "the agents will behave identically."
+
+## General portability scan
+
+Without a target:
 
 ```bash
 npx github:Sakshambhutani/agent-portability-check
 ```
 
-## The loop
-
-```text
-scan
-  ↓
-see what's not portable-ready
-  ↓
---fix
-  ↓
-safe preview + confirmation
-  ↓
-rescan
-  ↓
-100% PORTABLE-READY
-  ↓
-share the achievement
-```
-
-Low-readiness result pages prioritize **Improve my setup**. Social sharing becomes the primary action after the setup reaches the achievement state.
-
-## Scan
-
 The CLI separates:
 
-1. **Agent tools detected** — Codex, Claude Code, and Cursor based on CLI/app/IDE-extension evidence.
-2. **Global setup** — user-level skills on the machine.
-3. **This project** — skills and instructions inside the directory being scanned.
-4. **Portable readiness** — how many unique global skills have a canonical shared-format copy.
-5. **Cross-agent portability** — when 2+ supported agents are actually installed, how many skills are available to all of them.
+- installed agent tools
+- config footprints
+- global skills
+- project skills
+- structurally valid portable-ready skills
+- drifted copies
+- actual cross-agent availability when 2+ supported agents are installed
 
-A `.codex`, `.claude`, or `.cursor` folder by itself is a **config footprint**, not proof that the tool is installed.
+## Sharing
 
-## Improve the setup
+Every scan produces:
 
-Preview safe changes:
+- a local SVG share card
+- a local detailed HTML report
+- a local JSON report
+- a referral-aware public result URL
 
-```bash
-npx github:Sakshambhutani/agent-portability-check --fix
+After an achievement, the public result page can generate:
+
+- LinkedIn share
+- X share
+- ready-to-paste post copy
+- README badge
+- teammate challenge link
+
+## README badge
+
+A successful result page includes **Copy README badge**.
+
+Example:
+
+```md
+[![Agent Portability](https://agent-portability-check.vercel.app/api/badge?target=claude&ready=7&total=7)](https://agent-portability-check.vercel.app)
 ```
 
-The fixer is deliberately conservative:
+## Privacy
 
-- copies a canonical version into `~/.agents/skills/`
-- copies the **entire skill directory**, including scripts/references/assets
-- leaves the original skill untouched
-- does not overwrite an existing target
-- does not auto-resolve same-name skills whose contents differ
-- creates a Claude-side symlink adapter when Claude Code is detected and needs one
-- rescans after changes are applied
-- unlocks the **100% PORTABLE-READY** result when all global skills are in shared format
+Scanning and fixing happen locally.
 
-For automation/non-interactive use:
-
-```bash
-npx github:Sakshambhutani/agent-portability-check --fix --yes
-```
-
-## Current skill-location model
-
-The tool scans these locations because they are useful for migration/compatibility analysis:
-
-### Global
-
-- `~/.agents/skills/`
-- `~/.claude/skills/`
-- `~/.cursor/skills/`
-- `~/.codex/skills/` when present
-
-### Current project
-
-- `./.agents/skills/`
-- `./.claude/skills/`
-- `./.cursor/skills/`
-- `./.codex/skills/` when present
-
-For current Codex, `~/.agents/skills` is the canonical user-level skills location. Cursor supports `.agents/skills` as well as Cursor-specific and compatibility skill directories. Harness-specific directories are still scanned so existing setups can be diagnosed and migrated.
-
-## Result behavior
-
-### One agent installed
-
-Instead of inventing a cross-agent percentage, the share result focuses on **portable readiness**:
-
-```text
-0 / 7
-skills in shared format
-
-Codex setup · 7 global skills
-
-→ Improve my setup
-```
-
-After fixing:
-
-```text
-100%
-PORTABLE-READY
-
-7 / 7 skills in shared format
-0 drifted
-```
-
-That achievement page unlocks the share-first experience.
-
-### Two or more agents installed
-
-The tool can also show actual cross-agent availability:
-
-```text
-Portable readiness   100%
-Cross-agent score     75%
-
-6 / 8 skills available to every detected agent
-```
-
-These are deliberately different concepts.
-
-## Reports
-
-Each scan creates:
-
-- `.agent-portability/agent-portability-card.svg`
-- `.agent-portability/agent-portability-report.html`
-- `.agent-portability/agent-portability-report.json`
-
-The terminal also prints a clickable public share page plus the raw URL as a fallback.
-
-## Viral/referral flow
-
-Public site:
-
-https://agent-portability-check.vercel.app
-
-Each scan gets a referral-aware result URL.
-
-```text
-achievement
-  ↓
-share result
-  ↓
-friend clicks Check yours
-  ↓
-referral-aware CLI command
-  ↓
-referred scan
-```
-
-The landing page also supports the remediation route, so **Improve my setup** produces a command containing `--fix`.
-
-## Anonymous analytics
-
-Analytics are opt-in. The CLI can send coarse events through the Vercel relay to PostHog, including:
-
-- scan completed
-- fix previewed
-- fix applied
-- portable-ready achieved
-- share link generated
-- share page opened
-- share clicked
-- referred scan completed
-
-Properties are coarse/bucketed, including detected agents, skill-count buckets, score/readiness buckets, and drift counts.
-
-The analytics path does **not** send:
+Anonymous analytics are opt-in and send only coarse product events/buckets. They do **not** send:
 
 - skill names
 - file paths
-- skill/instruction contents
+- skill or instruction contents
 - repository names
-- emails
+- email addresses
 - GitHub usernames
 - account IDs
 
-Manage consent:
+Manage analytics:
 
 ```bash
 npx github:Sakshambhutani/agent-portability-check --analytics status
@@ -190,27 +198,37 @@ npx github:Sakshambhutani/agent-portability-check --analytics on
 npx github:Sakshambhutani/agent-portability-check --analytics off
 ```
 
+## Viral funnel events
+
+The public/CLI flow can emit anonymous events such as:
+
+- `apc_landing_viewed`
+- `apc_target_selected`
+- `apc_command_copied`
+- `apc_scan_completed`
+- `apc_fix_previewed`
+- `apc_fix_command_copied`
+- `apc_fix_applied`
+- `apc_portable_ready_achieved`
+- `apc_share_link_generated`
+- `apc_referral_page_opened`
+- `apc_badge_copied`
+- `apc_referred_scan_completed`
+
 ## Options
 
 ```text
 -p, --path <dir>       Project to scan
 -o, --output <dir>     Report folder
-    --json             Print full report JSON
-    --no-write         Don't create report files
-    --analytics <mode> on | off | status
-    --ref <id>         Attribute a referred scan
-    --fix              Preview/apply portable-ready fixes
+    --target <agent>    claude | codex | cursor
+    --fix              Preview/apply safe fixes
 -y, --yes              Apply --fix without confirmation
--h, --help             Show help
+    --ref <id>          Attribute a referred scan
+    --json              Print report JSON
+    --no-write          Don't create report files
+    --analytics <mode>  on | off | status
+-h, --help              Show help
 ```
-
-## Privacy and limitations
-
-Scanning and fixing happen locally.
-
-The fixer changes filesystem layout, not model behavior. A portable skill file does **not** guarantee identical behavior across different models, tools, MCP servers, permissions, environments, or runtime state.
-
-The detailed local HTML/JSON reports contain paths, so review them before sharing. The public result/share page only receives summary metrics.
 
 ## Development
 
@@ -220,7 +238,7 @@ cd agent-portability-check
 npm test
 ```
 
-GitHub Actions tests every push and pull request. Production health checks verify the Vercel telemetry relay and PostHog token configuration.
+GitHub Actions tests the public seams on Node 18 and 20. A production health workflow verifies the Vercel telemetry relay and PostHog project token.
 
 ## License
 
