@@ -241,8 +241,7 @@ export default function handler(req, res) {
 const referralId = ${JSON.stringify(ref)};
 const postText = ${JSON.stringify(postText)};
 const fixCommand = ${JSON.stringify(fixCommand)};
-const badgeMarkdown = ${JSON.stringify(badgeMarkdown)};
-const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+const badgeMarkdown = ${JSON.stringify(badgeMarkdown)};\nconst teamCode = ${JSON.stringify(teamCode)};\nconst resultPayload = ${JSON.stringify({\n  referral_id: ref,\n  target,\n  runtime,\n  target_ready: targetReady,\n  target_total: targetTotal,\n  target_auto: targetAuto,\n  target_manual: targetManual,\n  target_context: targetContext,\n  target_deps: targetDeps,\n  portable_ready: ready,\n  total_skills: total,\n  drift,\n  complete: shareAchievement,\n})};\nconst anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
 localStorage.setItem('apc_web_id', anon);
 
 async function track(event, extra={}) {
@@ -267,8 +266,7 @@ const checkEl = document.getElementById('check');
 const copyFixEl = document.getElementById('copyFix');
 const copyPostEl = document.getElementById('copyPost');
 const copyBadgeEl = document.getElementById('copyBadge');
-const copyEl = document.getElementById('copy');
-
+const copyEl = document.getElementById('copy');\nconst teamActionEl = document.getElementById('teamAction');\nconst identityPanelEl = document.getElementById('identityPanel');\nlet identitySupabase = null;\nlet identitySession = null;\nlet identityConfigured = false;\n
 if (linkedinEl) linkedinEl.addEventListener('click',()=>track('apc_linkedin_share_clicked',{share_surface:'linkedin'}));
 if (xEl) xEl.addEventListener('click',()=>track('apc_x_share_clicked',{share_surface:'x'}));
 if (checkEl) checkEl.addEventListener('click',()=>track('apc_check_yours_clicked'));
@@ -292,6 +290,158 @@ if (copyBadgeEl) copyBadgeEl.addEventListener('click',async()=>{
   copyBadgeEl.textContent='Badge copied';
   track('apc_badge_copied',{share_surface:'readme_badge'});
 });
+
+
+async function identityFetch(path, options={}) {
+  if (!identitySession?.access_token) throw new Error('not_signed_in');
+  return fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type':'application/json',
+      Authorization:'Bearer ' + identitySession.access_token,
+      ...(options.headers || {}),
+    },
+  });
+}
+
+function renderIdentityAuth() {
+  if (!identityPanelEl) return;
+  const signedIn = Boolean(identitySession?.user);
+  document.getElementById('identitySignedOut')?.classList.toggle('hidden', signedIn);
+  document.getElementById('identitySignedIn')?.classList.toggle('hidden', !signedIn);
+  const who = document.getElementById('identityWho');
+  if (who && signedIn) {
+    who.textContent = 'Signed in as ' + (identitySession.user.email || identitySession.user.user_metadata?.user_name || 'GitHub user');
+  }
+  if (teamCode) {
+    const action = document.getElementById('saveResult');
+    if (action) action.textContent = 'Save to team';
+    document.getElementById('showCreateTeam')?.classList.add('hidden');
+    if (teamActionEl) teamActionEl.textContent = 'Save to team';
+  }
+}
+
+async function setupIdentity() {
+  if (!teamActionEl) return;
+  try {
+    const configResponse = await fetch('/api/public-config');
+    const config = await configResponse.json();
+    if (!config.configured) return;
+
+    identityConfigured = true;
+    teamActionEl.classList.remove('hidden');
+    const module = await import('https://esm.sh/@supabase/supabase-js@2');
+    identitySupabase = module.createClient(config.url, config.anonKey, {
+      auth:{persistSession:true,detectSessionInUrl:true},
+    });
+    const current = await identitySupabase.auth.getSession();
+    identitySession = current.data.session;
+    renderIdentityAuth();
+    identitySupabase.auth.onAuthStateChange((_event, nextSession)=>{
+      identitySession = nextSession;
+      renderIdentityAuth();
+    });
+  } catch {}
+}
+
+if (teamActionEl) teamActionEl.addEventListener('click',()=>{
+  if (!identityConfigured) return;
+  identityPanelEl?.classList.toggle('hidden');
+  track('apc_identity_cta_clicked');
+});
+
+document.getElementById('identityEmailLogin')?.addEventListener('click',async()=>{
+  if (!identitySupabase) return;
+  const email = document.getElementById('identityEmail')?.value?.trim();
+  if (!email) {
+    document.getElementById('identityStatus').textContent = 'Enter your email first.';
+    return;
+  }
+  const result = await identitySupabase.auth.signInWithOtp({
+    email,
+    options:{emailRedirectTo:location.href},
+  });
+  document.getElementById('identityStatus').textContent = result.error ? result.error.message : 'Check your email for the sign-in link.';
+  if (!result.error) track('apc_identity_signin_started',{share_surface:'email'});
+});
+
+document.getElementById('identityGithubLogin')?.addEventListener('click',async()=>{
+  if (!identitySupabase) return;
+  const result = await identitySupabase.auth.signInWithOAuth({
+    provider:'github',
+    options:{redirectTo:location.href},
+  });
+  if (result.error) document.getElementById('identityStatus').textContent = result.error.message;
+  else track('apc_identity_signin_started',{share_surface:'github'});
+});
+
+async function saveCurrentResult(code='') {
+  const status = document.getElementById('identityStatus');
+  if (!identitySession) {
+    status.textContent = 'Sign in first.';
+    return null;
+  }
+  status.textContent = code ? 'Saving to team…' : 'Saving result…';
+  const response = await identityFetch('/api/save-result',{
+    method:'POST',
+    body:JSON.stringify({...resultPayload,team_code:code || undefined}),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    status.textContent = data.error === 'join_team_first'
+      ? 'Join this team from its invite page first.'
+      : (data.error || 'Could not save result.');
+    return null;
+  }
+  status.textContent = code ? 'Saved to team.' : 'Result saved.';
+  track(code ? 'apc_team_result_saved' : 'apc_result_saved');
+  return data.result;
+}
+
+document.getElementById('saveResult')?.addEventListener('click',()=>saveCurrentResult(teamCode));
+
+document.getElementById('showCreateTeam')?.addEventListener('click',()=>{
+  document.getElementById('createTeamArea')?.classList.toggle('hidden');
+});
+
+document.getElementById('createTeam')?.addEventListener('click',async()=>{
+  const status = document.getElementById('identityStatus');
+  if (!identitySession) {
+    status.textContent='Sign in first.';
+    return;
+  }
+  status.textContent='Creating team…';
+  const response = await identityFetch('/api/team-create',{
+    method:'POST',
+    body:JSON.stringify({
+      name:document.getElementById('teamNameInput')?.value || 'My Agent Team',
+      display_name:document.getElementById('displayNameInput')?.value || '',
+      target:resultPayload.target,
+      runtime:resultPayload.runtime,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    status.textContent=data.error || 'Could not create team.';
+    return;
+  }
+  const saved = await saveCurrentResult(data.team.invite_code);
+  if (!saved) return;
+  document.getElementById('teamInviteUrl').textContent=data.team.invite_url;
+  document.getElementById('teamInviteArea').classList.remove('hidden');
+  status.textContent='Team created and result saved. Share the invite.';
+  track('apc_team_created');
+});
+
+document.getElementById('copyTeamInvite')?.addEventListener('click',async()=>{
+  const url=document.getElementById('teamInviteUrl')?.textContent || '';
+  if (!url) return;
+  await navigator.clipboard.writeText(url);
+  document.getElementById('copyTeamInvite').textContent='Invite copied';
+  track('apc_team_invite_copied');
+});
+
+setupIdentity();
 
 if (copyEl) copyEl.addEventListener('click',async()=>{
   await navigator.clipboard.writeText(location.href);
