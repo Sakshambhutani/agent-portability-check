@@ -83,6 +83,24 @@ const $ = id => document.getElementById(id);
 let supabase = null;
 let session = null;
 let team = null;
+const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+localStorage.setItem('apc_web_id', anon);
+
+async function track(event, extra={}) {
+  try {
+    await fetch('/api/telemetry',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        event,
+        distinct_id:'web_' + anon,
+        properties:extra,
+      }),
+    });
+  } catch {}
+}
+
+track('apc_team_page_viewed');
 
 function commandForTeam() {
   if (!team) return '';
@@ -206,16 +224,14 @@ $('join').addEventListener('click', async () => {
   });
   const data = await response.json();
   if (!response.ok) return $('authStatus').textContent = data.error || 'Could not join team.';
-  $('authStatus').textContent = 'Joined. Run the command below, then save your result to this team.';
-  $('scanArea').classList.remove('hidden');
+  $('authStatus').textContent = 'Joined. Run the command below, then save your result to this team.';\n  track('apc_team_joined');\n  $('scanArea').classList.remove('hidden');
   $('command').textContent = commandForTeam();
   await loadTeam();
 });
 
 $('copyCommand').addEventListener('click', async () => {
   await navigator.clipboard.writeText(commandForTeam());
-  $('copyCommand').textContent = 'Copied — paste in Terminal';
-});
+  $('copyCommand').textContent = 'Copied — paste in Terminal';\n  track('apc_team_command_copied');\n});
 
 await loadTeam();
 await setupAuth();
