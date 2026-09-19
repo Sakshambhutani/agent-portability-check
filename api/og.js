@@ -1,5 +1,4 @@
-import { ImageResponse } from '@vercel/og';
-import { jsxs } from 'react/jsx-runtime';
+import sharp from 'sharp';
 
 function intParam(value, min, max, fallback = null) {
   const n = Number.parseInt(value, 10);
@@ -15,13 +14,19 @@ function cleanAgents(value) {
     .slice(0, 3);
 }
 
-const LABELS = { codex: 'Codex', claude: 'Claude Code', cursor: 'Cursor' };
-
-function el(type, props, ...children) {
-  return jsxs(type, { ...props, children });
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&apos;',
+  }[ch]));
 }
 
-export default function handler(req) {
+const LABELS = { codex: 'Codex', claude: 'Claude Code', cursor: 'Cursor' };
+
+export default async function handler(req, res) {
   const score = req.query?.score === 'na' ? null : intParam(req.query?.score, 0, 100, null);
   const total = intParam(req.query?.total, 0, 999, 0);
   const portable = intParam(req.query?.portable, 0, total || 999, 0);
@@ -58,6 +63,8 @@ export default function handler(req) {
       ? 'PORTABLE-READY'
       : 'SKILLS PORTABLE-READY';
 
+  const title = target ? `Ready for ${targetLabel}?` : 'How portable is my AI setup?';
+
   const sub = target
     ? targetComplete
       ? `All skills are discoverable and structurally ready for ${targetLabel}`
@@ -66,65 +73,48 @@ export default function handler(req) {
       ? `${ready}/${total} skills are in shared format with no drift`
       : `${total} global skills found in ${agentLabel}`;
 
-  const card = el('div', {
-      style: {
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        background: '#0b0d10',
-        color: '#ffffff',
-        padding: '64px 72px',
-      },
-    },
-    el('div', { style: { display: 'flex', flexDirection: 'column' } },
-      el('div', { style: { fontSize: 27, color: '#9aa6b2', letterSpacing: '0.08em' } },
-        target ? 'AGENT MIGRATION CHECK' : 'AGENT PORTABILITY CHECK'
-      ),
-      el('div', { style: { fontSize: 58, fontWeight: 800, marginTop: 24, letterSpacing: '-0.04em' } },
-        target ? `Ready for ${targetLabel}?` : 'How portable is my AI setup?'
-      ),
-    ),
-    el('div', { style: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' } },
-      el('div', { style: { display: 'flex', flexDirection: 'column' } },
-        el('div', { style: { fontSize: 126, fontWeight: 900, letterSpacing: '-0.07em', lineHeight: 0.9 } }, hero),
-        el('div', {
-          style: {
-            fontSize: 28,
-            color: targetComplete || portableReady ? '#68d391' : '#9aa6b2',
-            marginTop: 14,
-          },
-        }, heroLabel),
-      ),
-      el('div', { style: { display: 'flex', flexDirection: 'column', width: 520, paddingBottom: 8 } },
-        el('div', { style: { fontSize: 34, fontWeight: 700, lineHeight: 1.25 } }, sub),
-        el('div', { style: { display: 'flex', gap: 18, marginTop: 24, fontSize: 24, color: '#c8d0d9' } },
-          el('div', {}, `${drift} drifted`),
-          el('div', {}, '·'),
-          el('div', {}, agentLabel),
-        ),
-      ),
-    ),
-    el('div', {
-      style: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderTop: '1px solid #2a313a',
-        paddingTop: 24,
-      },
-    },
-      el('div', { style: { fontSize: 26, color: '#68d391' } }, 'Check yours → agent-portability-check.vercel.app'),
-      el('div', { style: { fontSize: 22, color: '#707c88' } }, 'local-first · open source'),
-    ),
-  );
+  const accent = targetComplete || portableReady ? '#68d391' : '#9aa6b2';
 
-  return new ImageResponse(card, {
-    width: 1200,
-    height: 630,
-    headers: {
-      'Cache-Control': 'public, max-age=300, s-maxage=86400',
-    },
-  });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
+    <rect width="1200" height="630" fill="#0b0d10"/>
+    <text x="72" y="92" fill="#9aa6b2" font-size="27" font-family="Arial,Helvetica,sans-serif" font-weight="600" letter-spacing="2">
+      ${esc(target ? 'AGENT MIGRATION CHECK' : 'AGENT PORTABILITY CHECK')}
+    </text>
+    <text x="72" y="174" fill="#ffffff" font-size="58" font-family="Arial,Helvetica,sans-serif" font-weight="800">
+      ${esc(title)}
+    </text>
+
+    <text x="72" y="390" fill="#ffffff" font-size="126" font-family="Arial,Helvetica,sans-serif" font-weight="900">
+      ${esc(hero)}
+    </text>
+    <text x="76" y="440" fill="${accent}" font-size="28" font-family="Arial,Helvetica,sans-serif" font-weight="700">
+      ${esc(heroLabel)}
+    </text>
+
+    <foreignObject x="610" y="250" width="510" height="150">
+      <div xmlns="http://www.w3.org/1999/xhtml" style="color:#fff;font-family:Arial,Helvetica,sans-serif;font-size:34px;font-weight:700;line-height:1.25;">
+        ${esc(sub)}
+      </div>
+    </foreignObject>
+    <text x="610" y="430" fill="#c8d0d9" font-size="24" font-family="Arial,Helvetica,sans-serif">
+      ${esc(`${drift} drifted · ${agentLabel}`)}
+    </text>
+
+    <line x1="72" y1="508" x2="1128" y2="508" stroke="#2a313a"/>
+    <text x="72" y="562" fill="#68d391" font-size="26" font-family="Arial,Helvetica,sans-serif">
+      Check yours → agent-portability-check.vercel.app
+    </text>
+    <text x="1128" y="562" text-anchor="end" fill="#707c88" font-size="22" font-family="Arial,Helvetica,sans-serif">
+      local-first · open source
+    </text>
+  </svg>`;
+
+  try {
+    const png = await sharp(Buffer.from(svg)).png().toBuffer();
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=86400');
+    res.status(200).end(png);
+  } catch (error) {
+    res.status(500).json({ error: 'og_render_failed' });
+  }
 }
