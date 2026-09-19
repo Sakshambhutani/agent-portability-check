@@ -19,6 +19,15 @@ function write(file, content = '') {
   fs.writeFileSync(file, content);
 }
 
+function validSkill(name, body = '# Instructions') {
+  return `---
+name: ${name}
+description: Test skill ${name}
+---
+${body}
+`;
+}
+
 test('a config folder alone does not count as an installed agent', () => {
   const { home } = fixture();
   fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
@@ -61,7 +70,7 @@ test('global and project skills are separated', () => {
 
 test('Codex + Claude are portable when shared canonical skill has a Claude adapter', () => {
   const { cwd, home } = fixture();
-  write(path.join(home, '.agents/skills/deploy/SKILL.md'), 'same');
+  write(path.join(home, '.agents/skills/deploy/SKILL.md'), validSkill('deploy'));
   fs.mkdirSync(path.join(home, '.claude/skills'), { recursive: true });
   fs.symlinkSync(path.join(home, '.agents/skills/deploy'), path.join(home, '.claude/skills/deploy'), 'dir');
   const r = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
@@ -74,7 +83,7 @@ test('two installed agents: one of two global skills portable gives 50%', () => 
   write(path.join(home, '.agents/skills/deploy/SKILL.md'), 'same');
   fs.mkdirSync(path.join(home, '.claude/skills'), { recursive: true });
   fs.symlinkSync(path.join(home, '.agents/skills/deploy'), path.join(home, '.claude/skills/deploy'), 'dir');
-  write(path.join(home, '.codex/skills/research/SKILL.md'), 'legacy location');
+  write(path.join(home, '.codex/skills/research/SKILL.md'), validSkill('research'));
   const r = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
   assert.equal(r.global.totalSkills, 2);
   assert.equal(r.global.portableAcrossInstalled, 1);
@@ -83,7 +92,7 @@ test('two installed agents: one of two global skills portable gives 50%', () => 
 
 test('shared .agents skill is portable across Codex and Cursor', () => {
   const { cwd, home } = fixture();
-  write(path.join(home, '.agents/skills/review/SKILL.md'), 'shared');
+  write(path.join(home, '.agents/skills/review/SKILL.md'), validSkill('review'));
   const r = scan({ cwd, home, installedHarnesses: ['codex', 'cursor'] });
   assert.equal(r.global.portableAcrossInstalled, 1);
   assert.equal(r.global.score, 100);
