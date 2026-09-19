@@ -1,8 +1,17 @@
 {
   "rewrites": [
-    { "source": "/r/:ref", "destination": "/api/result?ref=:ref" }
+    {
+      "source": "/r/:ref",
+      "destination": "/api/result?ref=:ref"
+    },
+    {
+      "source": "/team/:code",
+      "destination": "/api/team-page?code=:code"
+    }
   ],
   "functions": {
-    "api/*.js": { "maxDuration": 15 }
+    "api/*.js": {
+      "maxDuration": 15
+    }
   }
 }
