@@ -3,7 +3,6 @@
     { "source": "/r/:ref", "destination": "/api/result?ref=:ref" }
   ],
   "functions": {
-    "api/og.js": { "maxDuration": 15 },
-    "api/*.js": { "maxDuration": 5 }
+    "api/*.js": { "maxDuration": 15 }
   }
 }
