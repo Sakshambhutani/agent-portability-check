@@ -168,10 +168,12 @@ function printFootprints(report) {
 function printScope(title, data, installedCount) {
   console.log(`\n${title}`);
   console.log(`Skills              ${data.totalSkills}`);
-  console.log(`Shared-format       ${data.sharedFormatSkills} / ${data.totalSkills}`);
+  console.log(`Portable-ready      ${data.portableReadySkills ?? 0} / ${data.totalSkills}`);
+  console.log(`Readiness           ${data.portableReadyPercent === null ? 'N/A' : `${data.portableReadyPercent}%`}`);
+  console.log(`Shared location     ${data.sharedFormatSkills} / ${data.totalSkills}`);
   if (installedCount >= 2) {
     console.log(`Across all agents   ${data.portableAcrossInstalled} / ${data.totalSkills}`);
-    console.log(`Portability score   ${data.score === null ? 'N/A' : `${data.score}%`}`);
+    console.log(`Cross-agent score   ${data.score === null ? 'N/A' : `${data.score}%`}`);
   } else {
     console.log('Cross-agent score   N/A (need at least 2 detected agents)');
   }
