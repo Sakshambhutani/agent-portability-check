@@ -17,6 +17,7 @@ jobs:
           response="$(curl -fsS https://agent-portability-check.vercel.app/api/health)"
           echo "$response"
           echo "$response" | grep -q '"telemetryConfigured":true'
+          echo "$response" | grep -q '"tokenValid":true'
       - name: Send synthetic telemetry event
         run: |
           set -euo pipefail
