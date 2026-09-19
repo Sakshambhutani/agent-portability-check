@@ -21,7 +21,10 @@ function printHelp() {
 }
 
 function icon(level) {
-  return level === 'good' ? '✓' : level === 'high' ? '✕' : '⚠';
+  if (level === 'good') return '✓';
+  if (level === 'high') return '✕';
+  if (level === 'info') return '•';
+  return '⚠';
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -30,15 +33,21 @@ if (args.help) { printHelp(); process.exit(0); }
 const report = scan({ cwd: args.cwd });
 if (args.json) console.log(JSON.stringify(report, null, 2));
 else {
+  const scoreText = report.score === null ? 'N/A' : `${report.score} / 100`;
   console.log('\nAgent Portability Check');
   console.log('────────────────────────────────────');
-  console.log(`PORTABILITY SCORE   ${report.score} / 100`);
-  console.log(`Harnesses detected  ${report.activeHarnesses.join(', ') || 'none'}`);
+  console.log(`PORTABILITY SCORE   ${scoreText}`);
+  console.log(`Harness footprints  ${report.activeHarnesses.join(', ') || 'none detected'}`);
   console.log(`Unique skills       ${report.totalSkills}`);
-  console.log(`Harness-specific    ${report.harnessSpecificSkills.length}`);
+  console.log(`Cross-harness       ${report.crossHarnessSkills} / ${report.totalSkills}`);
+  console.log(`Fully portable      ${report.fullyPortableSkills} / ${report.totalSkills}`);
   console.log(`Drifted copies      ${report.drift.length}`);
   console.log('');
   for (const f of report.findings) console.log(`${icon(f.level)} ${f.text}`);
+  if (report.score !== null) {
+    console.log('\nScore = average portability of your unique skills.');
+    console.log('Shared .agents/skills = 100%; identical copies in 2 harnesses = 50%; one harness/drift = 0%.');
+  }
 }
 
 if (args.write) {
