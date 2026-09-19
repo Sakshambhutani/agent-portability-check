@@ -11,6 +11,7 @@ const ALLOWED_EVENTS = new Set([
   'apc_share_link_generated',
   'apc_analytics_enabled',
   'apc_referred_scan_completed',
+  'apc_health_check',
 ]);
 
 const ALLOWED_PROPERTIES = new Set([
