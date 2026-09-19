@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { scan } from '../src/scan.js';
+import { scan, detectInstalledHarnesses } from '../src/scan.js';
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'apc-'));
@@ -14,66 +14,92 @@ function fixture() {
   return { root, cwd, home };
 }
 
-function write(file, content) {
+function write(file, content = '') {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content);
 }
 
-test('shared .agents skill is fully portable without inventing a harness', () => {
-  const { cwd, home } = fixture();
-  write(path.join(cwd, '.agents/skills/review/SKILL.md'), '---\nname: review\n---\nDo reviews');
-  write(path.join(cwd, 'AGENTS.md'), '# Shared project rules');
-  const r = scan({ cwd, home });
-  assert.equal(r.totalSkills, 1);
-  assert.equal(r.crossHarnessSkills, 1);
-  assert.equal(r.fullyPortableSkills, 1);
-  assert.equal(r.score, 100);
-  assert.deepEqual(r.activeHarnesses, []);
+test('a config folder alone does not count as an installed agent', () => {
+  const { home } = fixture();
+  fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+  const detected = detectInstalledHarnesses({ home, platform: 'linux', commandCheck: () => false });
+  assert.equal(detected.length, 0);
 });
 
-test('one harness-specific skill scores zero and only detects that harness', () => {
-  const { cwd, home } = fixture();
-  write(path.join(home, '.codex/skills/deploy/SKILL.md'), 'deploy');
-  const r = scan({ cwd, home });
-  assert.equal(r.totalSkills, 1);
-  assert.equal(r.crossHarnessSkills, 0);
-  assert.equal(r.score, 0);
-  assert.deepEqual(r.activeHarnesses, ['Codex']);
+test('detects Codex from the VS Code extension', () => {
+  const { home } = fixture();
+  fs.mkdirSync(path.join(home, '.vscode/extensions/openai.chatgpt-1.2.3'), { recursive: true });
+  const detected = detectInstalledHarnesses({ home, platform: 'linux', commandCheck: () => false });
+  assert.deepEqual(detected.map(x => x.key), ['codex']);
+  assert.equal(detected[0].evidence[0].type, 'ide-extension');
 });
 
-test('identical copies across two harnesses receive half portability', () => {
-  const { cwd, home } = fixture();
-  write(path.join(cwd, '.claude/skills/deploy/SKILL.md'), 'deploy same');
-  write(path.join(cwd, '.cursor/skills/deploy/SKILL.md'), 'deploy same');
-  const r = scan({ cwd, home });
-  assert.equal(r.totalSkills, 1);
-  assert.equal(r.crossHarnessSkills, 1);
-  assert.equal(r.fullyPortableSkills, 0);
-  assert.equal(r.score, 50);
-  assert.deepEqual(r.activeHarnesses, ['Claude', 'Cursor']);
+test('detects Claude Code from the VS Code extension', () => {
+  const { home } = fixture();
+  fs.mkdirSync(path.join(home, '.vscode/extensions/anthropic.claude-code-2.0.0'), { recursive: true });
+  const detected = detectInstalledHarnesses({ home, platform: 'linux', commandCheck: () => false });
+  assert.deepEqual(detected.map(x => x.key), ['claude']);
 });
 
-test('same-name skills with different content are drift and score zero', () => {
+test('one installed agent gets no cross-agent score', () => {
   const { cwd, home } = fixture();
-  write(path.join(cwd, '.claude/skills/deploy/SKILL.md'), 'deploy v1');
-  write(path.join(cwd, '.cursor/skills/deploy/SKILL.md'), 'deploy v2');
-  const r = scan({ cwd, home });
-  assert.equal(r.duplicates.length, 1);
-  assert.equal(r.drift.length, 1);
-  assert.equal(r.score, 0);
+  write(path.join(home, '.agents/skills/review/SKILL.md'), '---\nname: review\n---\nDo reviews');
+  const r = scan({ cwd, home, installedHarnesses: ['codex'] });
+  assert.equal(r.global.totalSkills, 1);
+  assert.equal(r.global.sharedFormatSkills, 1);
+  assert.equal(r.global.score, null);
 });
 
-test('does not include file contents in the report', () => {
+test('global and project skills are separated', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.codex/skills/global-one/SKILL.md'), 'global');
+  write(path.join(cwd, '.codex/skills/project-one/SKILL.md'), 'project');
+  const r = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
+  assert.equal(r.global.totalSkills, 1);
+  assert.equal(r.project.totalSkills, 1);
+});
+
+test('two installed agents: identical copies in both are portable', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.codex/skills/deploy/SKILL.md'), 'same');
+  write(path.join(home, '.claude/skills/deploy/SKILL.md'), 'same');
+  const r = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
+  assert.equal(r.global.portableAcrossInstalled, 1);
+  assert.equal(r.global.score, 100);
+});
+
+test('two installed agents: one of two global skills portable gives 50%', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.codex/skills/deploy/SKILL.md'), 'same');
+  write(path.join(home, '.claude/skills/deploy/SKILL.md'), 'same');
+  write(path.join(home, '.codex/skills/research/SKILL.md'), 'codex only');
+  const r = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
+  assert.equal(r.global.totalSkills, 2);
+  assert.equal(r.global.portableAcrossInstalled, 1);
+  assert.equal(r.global.score, 50);
+});
+
+test('shared .agents skill counts across all detected agents', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), 'shared');
+  const r = scan({ cwd, home, installedHarnesses: ['codex', 'claude', 'cursor'] });
+  assert.equal(r.global.portableAcrossInstalled, 1);
+  assert.equal(r.global.score, 100);
+});
+
+test('drifted copies are not portable', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.codex/skills/deploy/SKILL.md'), 'v1');
+  write(path.join(home, '.claude/skills/deploy/SKILL.md'), 'v2');
+  const r = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
+  assert.equal(r.global.drift.length, 1);
+  assert.equal(r.global.score, 0);
+});
+
+test('report never stores instruction content', () => {
   const { cwd, home } = fixture();
   const secret = 'TOP-SECRET-INSTRUCTION';
   write(path.join(cwd, 'CLAUDE.md'), secret);
-  const r = scan({ cwd, home });
+  const r = scan({ cwd, home, installedHarnesses: ['codex'] });
   assert.equal(JSON.stringify(r).includes(secret), false);
-});
-
-test('returns N/A score when no skills are found', () => {
-  const { cwd, home } = fixture();
-  const r = scan({ cwd, home });
-  assert.equal(r.score, null);
-  assert.equal(r.totalSkills, 0);
 });
