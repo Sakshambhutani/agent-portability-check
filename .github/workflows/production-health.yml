@@ -9,8 +9,23 @@ jobs:
   health:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for Vercel deployment
-        run: sleep 25
+      - name: Wait for current Vercel content
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            page="$(curl -fsS https://agent-portability-check.vercel.app/ || true)"
+            if echo "$page" | grep -q 'See which skills won’t carry over in 10 seconds' &&
+               echo "$page" | grep -q -- '--target claude' &&
+               echo "$page" | grep -q 'Auto-fix' &&
+               echo "$page" | grep -q 'Manual attention'; then
+              echo "Latest landing page is live."
+              exit 0
+            fi
+            echo "Waiting for Vercel production alias (attempt $attempt/12)..."
+            sleep 10
+          done
+          echo "Expected landing content never became live."
+          exit 1
 
       - name: Check production health endpoint
         run: |
@@ -28,14 +43,6 @@ jobs:
             --data '{"event":"apc_health_check","distinct_id":"github_health_check","properties":{"platform":"ci","agent_count":0}}')"
           echo "$response"
           echo "$response" | grep -q '"ok":true'
-
-      - name: Check migration landing page
-        run: |
-          set -euo pipefail
-          page="$(curl -fsS https://agent-portability-check.vercel.app/)"
-          echo "$page" | grep -q 'See which skills won’t carry over in 10 seconds'
-          echo "$page" | grep -q -- '--target claude'
-          echo "$page" | grep -q 'Ready / Auto-fix / Manual'
 
       - name: Check completed target trophy page
         run: |
