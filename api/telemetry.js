@@ -18,6 +18,12 @@ const ALLOWED_EVENTS = new Set([
   'apc_fix_applied',
   'apc_portable_ready_achieved',
   'apc_badge_copied',
+  'apc_team_invite_copied',
+  'apc_team_created',
+  'apc_team_result_saved',
+  'apc_result_saved',
+  'apc_identity_signin_started',
+  'apc_identity_cta_clicked',
 ]);
 
 const ALLOWED_PROPERTIES = new Set([
@@ -42,6 +48,7 @@ const ALLOWED_PROPERTIES = new Set([
   'target_auto_count_bucket',
   'target_ready_count_bucket',
   'target_agent',
+  'target_runtime',
   'source',
 ]);
 
