@@ -48,6 +48,8 @@ const ALLOWED_PROPERTIES = new Set([
   'share_surface',
   'target_complete',
   'target_manual_count_bucket',
+  'target_dependency_count_bucket',
+  'target_context_count_bucket',
   'target_auto_count_bucket',
   'target_ready_count_bucket',
   'target_agent',
