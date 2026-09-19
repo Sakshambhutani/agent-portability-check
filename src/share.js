@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 const DEFAULT_PUBLIC_URL = 'https://agent-portability-check.vercel.app';
-const SHARE_VERSION = '4';
+const SHARE_VERSION = '5';
 
 export function normalizeReferralId(value) {
   if (typeof value !== 'string') return '';
@@ -15,6 +15,7 @@ export function createReferralId() {
 export function createShareInfo(report, {
   publicUrl = process.env.APC_PUBLIC_URL || DEFAULT_PUBLIC_URL,
   referralId = createReferralId(),
+  targetCompatibility = null,
 } = {}) {
   if (!publicUrl) return null;
 
@@ -36,6 +37,14 @@ export function createShareInfo(report, {
   url.searchParams.set('shared', String(report.global.sharedFormatSkills));
   url.searchParams.set('drift', String(report.global.drift.length));
   url.searchParams.set('agents', report.installedHarnesses.map(h => h.key).join(','));
+
+  if (targetCompatibility) {
+    url.searchParams.set('target', targetCompatibility.target);
+    url.searchParams.set('targetReady', String(targetCompatibility.summary.ready));
+    url.searchParams.set('targetTotal', String(targetCompatibility.summary.total));
+    url.searchParams.set('targetAuto', String(targetCompatibility.summary.autoFix));
+    url.searchParams.set('targetManual', String(targetCompatibility.summary.manual));
+  }
 
   return {
     referralId: ref,
