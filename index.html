@@ -4,63 +4,207 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Agent Portability Check</title>
-  <meta name="description" content="See how portable your AI setup is across Codex, Claude Code, and Cursor.">
+  <meta name="description" content="Switching between Codex, Claude Code, or Cursor? See what will work, what can be fixed automatically, and what needs manual attention.">
   <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#0b0d10;color:#f7f8fa}
-    body{margin:0}.shell{width:min(980px,calc(100% - 40px));margin:auto}
-    header{display:flex;justify-content:space-between;align-items:center;padding:24px 0}
-    header a{color:#b9c2cc;text-decoration:none}
-    main{padding:72px 0 100px}.eyebrow{font-family:ui-monospace,monospace;color:#8e9ba9}
-    h1{font-size:clamp(52px,9vw,96px);line-height:.94;letter-spacing:-.055em;max-width:900px;margin:20px 0}
-    .lead{font-size:22px;color:#aeb8c3;max-width:700px;line-height:1.5}
-    .terminal{margin:36px 0;background:#12161b;border:1px solid #2a313a;border-radius:18px;padding:18px;display:flex;gap:12px;align-items:center;justify-content:space-between}
-    code{font-family:ui-monospace,monospace;overflow-wrap:anywhere}.btn{border:0;border-radius:10px;padding:12px 16px;font-weight:750;cursor:pointer;background:#fff;color:#0b0d10;white-space:nowrap}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:60px}
-    .tile{background:#12161b;border:1px solid #2a313a;border-radius:18px;padding:22px}.tile h3{margin-top:0}
-    .muted{color:#8e9ba9}.ref{margin:26px 0;padding:15px;border-left:3px solid #68d391;background:#101820;border-radius:8px;display:none}
-    @media(max-width:760px){.grid{grid-template-columns:1fr}.terminal{align-items:flex-start;flex-direction:column}}
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#090c0f;color:#f7f8fa}
+    *{box-sizing:border-box}body{margin:0}.shell{width:min(1060px,calc(100% - 40px));margin:auto}
+    header{display:flex;justify-content:space-between;align-items:center;padding:24px 0;border-bottom:1px solid #1f252c}
+    header a{color:#b9c2cc;text-decoration:none}.brand{font-weight:800}
+    main{padding:72px 0 100px}.eyebrow{font-family:ui-monospace,monospace;color:#7f8b98;letter-spacing:.09em;font-size:13px}
+    h1{font-size:clamp(48px,8vw,88px);line-height:.94;letter-spacing:-.055em;max-width:980px;margin:20px 0}
+    .lead{font-size:22px;color:#aeb8c3;max-width:780px;line-height:1.5;margin-bottom:30px}
+    .targets{display:flex;gap:10px;flex-wrap:wrap;margin:26px 0}
+    .target{border:1px solid #303945;background:#14191f;color:#d9e0e7;border-radius:999px;padding:10px 15px;cursor:pointer;font-weight:700}
+    .target.active{background:#fff;color:#0b0d10;border-color:#fff}
+    .ref{margin:22px 0;padding:15px 17px;border-left:3px solid #68d391;background:#101820;border-radius:9px;display:none}
+    .terminal{margin:26px 0 12px;background:#11161b;border:1px solid #2a313a;border-radius:18px;padding:20px;display:flex;gap:16px;align-items:center;justify-content:space-between}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;color:#f5f7fa}
+    .btn{border:0;border-radius:11px;padding:12px 17px;font-weight:800;cursor:pointer;background:#fff;color:#0b0d10;white-space:nowrap}
+    .muted{color:#8e9ba9}.trust{display:flex;gap:16px;flex-wrap:wrap;color:#8995a3;font-size:14px;margin:14px 0}
+    .example{margin-top:38px;border:1px solid #2a313a;border-radius:18px;background:#0d1116;overflow:hidden}
+    .example-head{padding:13px 17px;border-bottom:1px solid #252c34;color:#9aa6b2;font-family:ui-monospace,monospace;font-size:13px}
+    pre{margin:0;padding:22px;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.65;color:#dce3ea}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:66px}
+    .tile{background:#12161b;border:1px solid #2a313a;border-radius:18px;padding:24px}.tile h3{margin:0 0 10px;font-size:20px}.tile p{margin:0;line-height:1.55;color:#939fac}
+    .trophy{margin-top:60px;border:1px solid #2a313a;border-radius:24px;padding:30px;background:#10151a}
+    .trophy strong{font-size:30px}.trophy p{color:#9ba6b1;line-height:1.6;max-width:720px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}.terminal{align-items:flex-start;flex-direction:column}main{padding-top:46px}}
   </style>
 </head>
 <body>
 <div class="shell">
-<header><strong>Agent Portability Check</strong><a href="https://github.com/Sakshambhutani/agent-portability-check">GitHub ↗</a></header>
-<main>
-  <div class="eyebrow">FREE · OPEN SOURCE · LOCAL-FIRST</div>
-  <h1>How portable is your AI setup?</h1>
-  <p class="lead">Check which skills actually travel across Codex, Claude Code, and Cursor — and where your setup is drifting.</p>
-  <div id="refbox" class="ref">Someone shared their result with you. Run the command below to compare yours.</div>
-  <div class="terminal">
-    <code id="command">npx github:Sakshambhutani/agent-portability-check</code>
-    <button id="copy" class="btn">Copy command</button>
-  </div>
-  <p class="muted">Runs locally. Skill names, file paths, and instruction contents are not sent to this website.</p>
-  <div class="grid">
-    <div class="tile"><h3>1. Scan</h3><p class="muted">Detect installed agents and separate global vs project skills.</p></div>
-    <div class="tile"><h3>2. Compare</h3><p class="muted">See what travels cleanly across the agents you actually use.</p></div>
-    <div class="tile"><h3>3. Share</h3><p class="muted">Post your score and challenge a teammate to check theirs.</p></div>
-  </div>
-</main>
+  <header>
+    <div class="brand">Agent Portability Check</div>
+    <a href="https://github.com/Sakshambhutani/agent-portability-check">View source on GitHub ↗</a>
+  </header>
+
+  <main>
+    <div class="eyebrow">FREE · OPEN SOURCE · LOCAL-FIRST</div>
+    <h1>Switching AI agents? See what breaks in 10 seconds.</h1>
+    <p class="lead">Check your skills before moving between Codex, Claude Code, and Cursor. Get a per-skill answer: <strong>Ready</strong>, <strong>Auto-fix</strong>, or <strong>Manual attention</strong>.</p>
+
+    <div class="targets" aria-label="Choose a migration target">
+      <button class="target" data-target="claude">Moving to Claude Code</button>
+      <button class="target" data-target="codex">Moving to Codex</button>
+      <button class="target" data-target="cursor">Moving to Cursor</button>
+      <button class="target" data-target="">Check current setup</button>
+    </div>
+
+    <div id="refbox" class="ref"></div>
+
+    <div class="terminal">
+      <code id="command">npx github:Sakshambhutani/agent-portability-check --target claude</code>
+      <button id="copy" class="btn">Copy 10-second check</button>
+    </div>
+
+    <div class="trust">
+      <span>✓ Runs locally</span>
+      <span>✓ Skill contents stay on your machine</span>
+      <span>✓ No account required</span>
+      <span>✓ Open source</span>
+    </div>
+
+    <div class="example">
+      <div class="example-head" id="exampleHead">Example · migration to Claude Code</div>
+      <pre id="exampleText">TARGET COMPATIBILITY — Claude Code
+────────────────────────────────────
+Skills checked       7
+Ready                3
+Auto-fix             3
+Manual attention     1
+
+✓ code-review — READY
+⚡ deploy-prod — AUTO-FIX
+✕ incident-response — MANUAL
+  Missing companion file: scripts/check.sh</pre>
+    </div>
+
+    <div class="grid">
+      <div class="tile">
+        <h3>1. Scan</h3>
+        <p>Find skills, installed agents, drifted copies, malformed metadata, and missing companion files.</p>
+      </div>
+      <div class="tile">
+        <h3>2. Fix</h3>
+        <p>Preview safe layout/discovery changes. Originals stay untouched; conflicts are never silently overwritten.</p>
+      </div>
+      <div class="tile">
+        <h3>3. Show off</h3>
+        <p>Reach 100% portable-ready or target-ready, then unlock a social card and README badge.</p>
+      </div>
+    </div>
+
+    <div class="trophy">
+      <div class="eyebrow">THE VIRAL OBJECT</div>
+      <strong>7 / 7 ready for Claude Code 🏆</strong>
+      <p>The result becomes share-first only after the setup passes. Share it on LinkedIn/X, add the badge to a README, or challenge a teammate to check theirs.</p>
+    </div>
+  </main>
 </div>
+
 <script>
 const params = new URLSearchParams(location.search);
 const ref = (params.get('ref') || '').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
 const wantsFix = params.get('fix') === '1';
-const command = 'npx github:Sakshambhutani/agent-portability-check' + (wantsFix ? ' --fix' : '') + (ref ? ' --ref ' + ref : '');
-document.getElementById('command').textContent = command;
-if (ref || wantsFix) { document.getElementById('refbox').style.display='block'; document.getElementById('refbox').textContent = wantsFix ? 'Make your setup portable-ready, then rescan and unlock the share card.' : 'Someone shared their result with you. Run the command below to compare yours.'; }
+const initialTarget = ['claude','codex','cursor'].includes(params.get('target')) ? params.get('target') : (wantsFix ? '' : 'claude');
+
+const labels = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', '': 'your current setup' };
+const targetButtons = [...document.querySelectorAll('.target')];
+const commandEl = document.getElementById('command');
+const copyEl = document.getElementById('copy');
+const exampleHead = document.getElementById('exampleHead');
+const exampleText = document.getElementById('exampleText');
+let selectedTarget = initialTarget;
+
+function buildCommand() {
+  return [
+    'npx github:Sakshambhutani/agent-portability-check',
+    selectedTarget ? '--target ' + selectedTarget : '',
+    wantsFix ? '--fix' : '',
+    ref ? '--ref ' + ref : ''
+  ].filter(Boolean).join(' ');
+}
+
+function updateUI() {
+  targetButtons.forEach(button => button.classList.toggle('active', button.dataset.target === selectedTarget));
+  commandEl.textContent = buildCommand();
+  copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy 10-second check';
+
+  if (selectedTarget) {
+    const label = labels[selectedTarget];
+    exampleHead.textContent = 'Example · migration to ' + label;
+    exampleText.textContent =
+`TARGET COMPATIBILITY — ${label}
+────────────────────────────────────
+Skills checked       7
+Ready                3
+Auto-fix             3
+Manual attention     1
+
+✓ code-review — READY
+⚡ deploy-prod — AUTO-FIX
+✕ incident-response — MANUAL
+  Missing companion file: scripts/check.sh`;
+  } else {
+    exampleHead.textContent = 'Example · current setup';
+    exampleText.textContent =
+`GLOBAL SETUP
+────────────────────────────────────
+Skills               7
+Portable-ready       3 / 7
+Drifted copies       1
+
+Run with --fix to preview safe changes.`;
+  }
+
+  const url = new URL(location.href);
+  if (selectedTarget) url.searchParams.set('target', selectedTarget);
+  else url.searchParams.delete('target');
+  history.replaceState({}, '', url);
+}
+
+targetButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    selectedTarget = button.dataset.target;
+    updateUI();
+    track('apc_target_selected', { target_agent: selectedTarget || 'current' });
+  });
+});
+
+if (ref || wantsFix) {
+  const box = document.getElementById('refbox');
+  box.style.display = 'block';
+  box.textContent = wantsFix
+    ? 'This command previews safe fixes first. Nothing is deleted or silently overwritten.'
+    : 'You arrived from a shared result. Check your own setup and compare.';
+}
+
 const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
 localStorage.setItem('apc_web_id', anon);
-async function track(event) {
+
+async function track(event, extra={}) {
   try {
-    await fetch('/api/telemetry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event,distinct_id:'web_'+anon,properties:{referral_id:ref}})});
+    await fetch('/api/telemetry', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        event,
+        distinct_id:'web_' + anon,
+        properties:{ referral_id:ref, ...extra }
+      })
+    });
   } catch {}
 }
-track('apc_landing_viewed');
-document.getElementById('copy').addEventListener('click', async ()=>{
-  await navigator.clipboard.writeText(command);
-  document.getElementById('copy').textContent='Copied';
-  track('apc_command_copied');
+
+track('apc_landing_viewed', { target_agent:selectedTarget || 'current' });
+
+copyEl.addEventListener('click', async () => {
+  await navigator.clipboard.writeText(buildCommand());
+  copyEl.textContent = wantsFix ? 'Copied — paste in Terminal' : 'Copied — paste in Terminal';
+  track('apc_command_copied', { target_agent:selectedTarget || 'current' });
 });
+
+updateUI();
 </script>
 </body>
 </html>
