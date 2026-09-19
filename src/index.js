@@ -304,6 +304,25 @@ async function main() {
   if (preference.enabled && telemetryDestinationConfigured()) {
     const baseProperties = buildScanTelemetry(report);
     if (args.ref) baseProperties.referral_id = args.ref;
+    if (targetReport) {
+      const bucket = (value) => {
+        if (value <= 0) return '0';
+        if (value <= 5) return '1-5';
+        if (value <= 10) return '6-10';
+        if (value <= 25) return '11-25';
+        return '26+';
+      };
+      baseProperties.target_agent = targetReport.target;
+      baseProperties.target_ready_count_bucket = bucket(targetReport.summary.ready);
+      baseProperties.target_auto_count_bucket = bucket(targetReport.summary.autoFix);
+      baseProperties.target_manual_count_bucket = bucket(targetReport.summary.manual);
+      baseProperties.target_complete = Boolean(
+        targetReport.summary.total > 0 &&
+        targetReport.summary.ready === targetReport.summary.total &&
+        targetReport.summary.autoFix === 0 &&
+        targetReport.summary.manual === 0
+      );
+    }
 
     if (args.fix && fixPlan) {
       await captureTelemetry('apc_fix_previewed', baseProperties);
