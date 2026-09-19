@@ -35,18 +35,26 @@ export default function handler(req, res) {
   const drift = intParam(req.query.drift, 0, 999, 0);
   const agents = cleanAgents(req.query.agents);
   const singleAgent = score === null;
+  const readiness = total > 0 ? Math.round(100 * shared / total) : null;
+  const portableReady = singleAgent && readiness === 100;
+  const shareAchievement = portableReady || (!singleAgent && score >= 80);
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const origin = `https://${req.headers.host}`;
   const canonical = new URL(req.url, origin).toString();
   const checkUrl = `${origin}/?ref=${encodeURIComponent(ref)}`;
+  const improveUrl = `${origin}/?ref=${encodeURIComponent(ref)}&fix=1`;
 
-  const title = singleAgent
-    ? `${shared}/${total} AI skills in shared format`
-    : `My AI setup is ${score}% portable`;
+  const title = portableReady
+    ? 'My AI setup is 100% portable-ready'
+    : (singleAgent
+      ? `${shared}/${total} AI skills in shared format`
+      : `My AI setup is ${score}% portable`);
 
-  const description = singleAgent
-    ? `${total} global skills found in ${agentLabel}. ${shared} are currently in a shared cross-agent location.`
-    : `${portable} of ${total} global skills are portable across ${agentLabel}.`;
+  const description = portableReady
+    ? `${shared}/${total} global skills are now in shared format. ${agentLabel} setup is portable-ready.`
+    : (singleAgent
+      ? `${total} global skills found in ${agentLabel}. ${shared} are currently in a shared cross-agent location.`
+      : `${portable} of ${total} global skills are portable across ${agentLabel}.`);
 
   const og = new URL('/api/og', origin);
   og.searchParams.set('v', '3');
@@ -58,17 +66,21 @@ export default function handler(req, res) {
   og.searchParams.set('agents', agents.join(','));
 
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
-  const xText = singleAgent
-    ? `I found ${total} AI skills in my ${agentLabel} setup. ${shared}/${total} are in a shared cross-agent format. Check yours:`
-    : `My AI setup is ${score}% portable across ${agentLabel}. ${portable}/${total} skills travel cleanly. Check yours:`;
+  const xText = portableReady
+    ? `I made my AI setup 100% portable-ready. ${shared}/${total} skills are now in shared format. Check yours:`
+    : (singleAgent
+      ? `I found ${total} AI skills in my ${agentLabel} setup. ${shared}/${total} are in a shared cross-agent format. Check yours:`
+      : `My AI setup is ${score}% portable across ${agentLabel}. ${portable}/${total} skills travel cleanly. Check yours:`);
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}&url=${encodeURIComponent(canonical)}`;
 
-  const postText = singleAgent
-    ? `I found ${total} AI skills in my ${agentLabel} setup.\n\n${shared}/${total} are currently in a shared cross-agent format.\n\nCheck yours: ${canonical}`
-    : `My AI setup is ${score}% portable across ${agentLabel}.\n\n${portable}/${total} skills travel cleanly and ${drift} have drifted copies.\n\nCheck yours: ${canonical}`;
+  const postText = portableReady
+    ? `I made my AI setup 100% portable-ready.\n\n${shared}/${total} global skills are now in shared format, with ${drift} drifted copies.\n\nCheck yours: ${canonical}`
+    : (singleAgent
+      ? `I found ${total} AI skills in my ${agentLabel} setup.\n\n${shared}/${total} are currently in a shared cross-agent format.\n\nCheck yours: ${canonical}`
+      : `My AI setup is ${score}% portable across ${agentLabel}.\n\n${portable}/${total} skills travel cleanly and ${drift} have drifted copies.\n\nCheck yours: ${canonical}`);
 
-  const hero = singleAgent ? `${shared} / ${total}` : `${score}%`;
-  const heroLabel = singleAgent ? 'skills in shared format' : 'portable across my agents';
+  const hero = portableReady ? '100%' : (singleAgent ? `${shared} / ${total}` : `${score}%`);
+  const heroLabel = portableReady ? 'PORTABLE-READY' : (singleAgent ? 'skills in shared format' : 'portable across my agents');
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -131,22 +143,31 @@ export default function handler(req, res) {
 
     <div class="insight">${esc(description)}</div>
 
-    <div class="copybox" id="posttext">${esc(postText)}</div>
-
-    <div class="actions">
-      <button id="copyPost" class="primary">Copy post text</button>
-      <a id="linkedin" class="secondary" href="${esc(linkedin)}" target="_blank" rel="noopener">Open LinkedIn</a>
-      <a id="xshare" class="secondary" href="${esc(xUrl)}" target="_blank" rel="noopener">Share on X</a>
-      <button id="copy" class="secondary">Copy link</button>
-    </div>
-
-    <div class="cta">
-      <div>
-        <h2>What does yours look like?</h2>
-        <p class="muted">One local command. Skill contents stay on your machine.</p>
+    ${shareAchievement ? `
+      <div class="copybox" id="posttext">${esc(postText)}</div>
+      <div class="actions">
+        <button id="copyPost" class="primary">Copy post text</button>
+        <a id="linkedin" class="secondary" href="${esc(linkedin)}" target="_blank" rel="noopener">Open LinkedIn</a>
+        <a id="xshare" class="secondary" href="${esc(xUrl)}" target="_blank" rel="noopener">Share on X</a>
+        <button id="copy" class="secondary">Copy link</button>
       </div>
-      <a id="check" class="primary" href="${esc(checkUrl)}">Check yours →</a>
-    </div>
+      <div class="cta">
+        <div>
+          <h2>What does yours look like?</h2>
+          <p class="muted">One local command. Skill contents stay on your machine.</p>
+        </div>
+        <a id="check" class="primary" href="${esc(checkUrl)}">Check yours →</a>
+      </div>
+    ` : `
+      <div class="insight">
+        <strong>This is the before state.</strong><br>
+        Make your skills portable-ready, rescan, and unlock the shareable achievement card.
+      </div>
+      <div class="actions">
+        <a id="improve" class="primary" href="${esc(improveUrl)}">Improve my setup →</a>
+        <button id="copy" class="secondary">Copy result link</button>
+      </div>
+    `}
   </div>
 </div>
 <script>
@@ -170,19 +191,28 @@ async function track(event, extra={}) {
 }
 
 track('apc_referral_page_opened');
-document.getElementById('linkedin').addEventListener('click',()=>track('apc_linkedin_share_clicked',{share_surface:'linkedin'}));
-document.getElementById('xshare').addEventListener('click',()=>track('apc_x_share_clicked',{share_surface:'x'}));
-document.getElementById('check').addEventListener('click',()=>track('apc_check_yours_clicked'));
 
-document.getElementById('copyPost').addEventListener('click',async()=>{
+const linkedinEl = document.getElementById('linkedin');
+const xEl = document.getElementById('xshare');
+const checkEl = document.getElementById('check');
+const improveEl = document.getElementById('improve');
+const copyPostEl = document.getElementById('copyPost');
+const copyEl = document.getElementById('copy');
+
+if (linkedinEl) linkedinEl.addEventListener('click',()=>track('apc_linkedin_share_clicked',{share_surface:'linkedin'}));
+if (xEl) xEl.addEventListener('click',()=>track('apc_x_share_clicked',{share_surface:'x'}));
+if (checkEl) checkEl.addEventListener('click',()=>track('apc_check_yours_clicked'));
+if (improveEl) improveEl.addEventListener('click',()=>track('apc_fix_previewed'));
+
+if (copyPostEl) copyPostEl.addEventListener('click',async()=>{
   await navigator.clipboard.writeText(postText);
-  document.getElementById('copyPost').textContent='Post text copied';
+  copyPostEl.textContent='Post text copied';
   track('apc_copy_link_clicked',{share_surface:'post_text'});
 });
 
-document.getElementById('copy').addEventListener('click',async()=>{
+if (copyEl) copyEl.addEventListener('click',async()=>{
   await navigator.clipboard.writeText(location.href);
-  document.getElementById('copy').textContent='Copied';
+  copyEl.textContent='Copied';
   track('apc_copy_link_clicked',{share_surface:'copy'});
 });
 </script>
