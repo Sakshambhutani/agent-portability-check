@@ -79,12 +79,27 @@ test('two installed agents: one of two global skills portable gives 50%', () => 
   assert.equal(r.global.score, 50);
 });
 
-test('shared .agents skill counts across all detected agents', () => {
+test('shared .agents skill is portable across Codex and Cursor', () => {
   const { cwd, home } = fixture();
   write(path.join(home, '.agents/skills/review/SKILL.md'), 'shared');
-  const r = scan({ cwd, home, installedHarnesses: ['codex', 'claude', 'cursor'] });
+  const r = scan({ cwd, home, installedHarnesses: ['codex', 'cursor'] });
   assert.equal(r.global.portableAcrossInstalled, 1);
   assert.equal(r.global.score, 100);
+  assert.equal(r.global.portableReadyPercent, 100);
+});
+
+test('Claude requires a Claude-discoverable copy or adapter', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), 'shared');
+  const before = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
+  assert.equal(before.global.portableAcrossInstalled, 0);
+  assert.equal(before.global.score, 0);
+
+  fs.mkdirSync(path.join(home, '.claude/skills'), { recursive: true });
+  fs.symlinkSync(path.join(home, '.agents/skills/review'), path.join(home, '.claude/skills/review'), 'dir');
+  const after = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
+  assert.equal(after.global.portableAcrossInstalled, 1);
+  assert.equal(after.global.score, 100);
 });
 
 test('drifted copies are not portable', () => {
