@@ -49,11 +49,27 @@ export function planPortableReadyFix(report, {
     }
 
     const portableCopy = status.copies.find(copy => copy.owner === 'portable');
+    if (portableCopy && !portableCopy.packageValid) {
+      conflicts.push({
+        name: status.name,
+        reason: 'Shared copy has invalid skill metadata or missing companion files. Fix it manually first.',
+      });
+      continue;
+    }
+
     let canonicalDir = portableCopy ? sourceSkillDir(portableCopy, { cwd, home }) : null;
 
     if (!portableCopy) {
-      const source = status.copies[0];
+      const source = status.copies.find(copy => copy.packageValid) || status.copies[0];
       if (!source) continue;
+
+      if (!source.packageValid) {
+        conflicts.push({
+          name: status.name,
+          reason: 'Skill metadata or companion files are invalid. Nothing was copied.',
+        });
+        continue;
+      }
 
       const sourceDir = sourceSkillDir(source, { cwd, home });
       const folderName = folderNameForCopy(source, { cwd, home });
