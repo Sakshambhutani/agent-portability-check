@@ -69,3 +69,21 @@ test('creates a Claude adapter when Claude is installed and no Claude copy exist
   assert.equal(fs.lstatSync(link).isSymbolicLink(), true);
   assert.equal(fs.realpathSync(link), fs.realpathSync(path.join(home, '.agents/skills/review')));
 });
+
+test('target Claude creates an adapter even before Claude is installed', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.codex/skills/review/SKILL.md'), '---\nname: review\ndescription: Review code\n---\nReview');
+
+  const before = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const plan = planPortableReadyFix(before, { cwd, home, target: 'claude' });
+
+  assert.equal(plan.copyPlans.length, 1);
+  assert.equal(plan.adapterPlans.length, 1);
+
+  applyPortableReadyFix(plan);
+
+  assert.equal(
+    fs.lstatSync(path.join(home, '.claude/skills/review')).isSymbolicLink(),
+    true,
+  );
+});
