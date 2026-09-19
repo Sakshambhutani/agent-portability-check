@@ -8,7 +8,7 @@ Run one command from any project folder:
 npx github:Sakshambhutani/agent-portability-check
 ```
 
-V0.3 separates three things that earlier versions mixed together:
+V0.4 separates three things:
 
 1. **Agent tools detected** — Codex, Claude Code, and Cursor based on CLI/app/IDE-extension evidence.
 2. **Global setup** — skills in your home-level agent folders.
@@ -43,13 +43,13 @@ Portability score   63%
 Drifted copies      0
 ```
 
-The headline score answers one narrow question:
+The headline score answers:
 
 > **What share of my unique global skills are available across every supported agent detected on this machine?**
 
 ## Detection
 
-V0.3 checks for:
+V0.4 checks for:
 
 - **Codex:** `codex` CLI or the OpenAI Codex VS Code-family extension (`openai.chatgpt`)
 - **Claude Code:** `claude` CLI or the Claude Code VS Code-family extension (`anthropic.claude-code`)
@@ -94,6 +94,68 @@ The tool creates:
 - `.agent-portability/agent-portability-report.html` — detailed local report
 - `.agent-portability/agent-portability-report.json` — machine-readable output
 
+## Anonymous analytics (V0.4)
+
+The CLI contains privacy-first PostHog telemetry plumbing for product analytics.
+
+When a telemetry destination is configured, the CLI asks for consent before sending anything.
+
+It may send:
+
+- app version
+- operating system
+- Node major version
+- which supported agents were detected
+- bucketed global/project skill counts
+- bucketed portability score
+- bucketed drift counts
+- whether a share card was generated
+
+It never sends:
+
+- skill names
+- file paths
+- instruction contents
+- repository names
+- email addresses
+- GitHub usernames
+- account IDs
+
+Events are sent as anonymous PostHog events with person-profile processing disabled.
+
+Manage the preference with:
+
+```bash
+npx github:Sakshambhutani/agent-portability-check --analytics status
+npx github:Sakshambhutani/agent-portability-check --analytics on
+npx github:Sakshambhutani/agent-portability-check --analytics off
+```
+
+The preference is stored locally at:
+
+```text
+~/.agent-portability/config.json
+```
+
+### Analytics destination
+
+The public repository does **not** contain a PostHog project token.
+
+For local development, either configure PostHog directly:
+
+```bash
+export APC_POSTHOG_TOKEN="<project-token>"
+export APC_POSTHOG_HOST="https://us.i.posthog.com"
+```
+
+or point the CLI at a relay endpoint:
+
+```bash
+export APC_TELEMETRY_ENDPOINT="https://your-domain.example/api/telemetry"
+```
+
+For a public launch, a small relay is preferable because it keeps analytics credentials/configuration out of the CLI source.
+
 ## Privacy
 
 Scanning and report generation happen locally. Skill and instruction contents are read only to compute hashes; generated reports store **paths and hashes, not the text itself**.
@@ -103,11 +165,12 @@ Review the detailed HTML/JSON before sharing because local paths can still be se
 ## Options
 
 ```text
--p, --path <dir>     Project to scan (default: current directory)
--o, --output <dir>   Report folder (default: .agent-portability)
-    --json           Print report JSON
-    --no-write       Don't create report files
--h, --help           Show help
+-p, --path <dir>       Project to scan (default: current directory)
+-o, --output <dir>     Report folder (default: .agent-portability)
+    --json             Print report JSON
+    --no-write         Don't create report files
+    --analytics <mode> on | off | status
+-h, --help             Show help
 ```
 
 ## Development
@@ -117,6 +180,8 @@ git clone https://github.com/Sakshambhutani/agent-portability-check.git
 cd agent-portability-check
 npm test
 ```
+
+CI runs the test suite on Node 18 and Node 20 for every push and pull request.
 
 ## Important limitation
 
