@@ -80,7 +80,7 @@ test('Codex + Claude are portable when shared canonical skill has a Claude adapt
 
 test('two installed agents: one of two global skills portable gives 50%', () => {
   const { cwd, home } = fixture();
-  write(path.join(home, '.agents/skills/deploy/SKILL.md'), 'same');
+  write(path.join(home, '.agents/skills/deploy/SKILL.md'), validSkill('deploy'));
   fs.mkdirSync(path.join(home, '.claude/skills'), { recursive: true });
   fs.symlinkSync(path.join(home, '.agents/skills/deploy'), path.join(home, '.claude/skills/deploy'), 'dir');
   write(path.join(home, '.codex/skills/research/SKILL.md'), validSkill('research'));
@@ -101,7 +101,7 @@ test('shared .agents skill is portable across Codex and Cursor', () => {
 
 test('Claude requires a Claude-discoverable copy or adapter', () => {
   const { cwd, home } = fixture();
-  write(path.join(home, '.agents/skills/review/SKILL.md'), 'shared');
+  write(path.join(home, '.agents/skills/review/SKILL.md'), validSkill('review'));
   const before = scan({ cwd, home, installedHarnesses: ['codex', 'claude'] });
   assert.equal(before.global.portableAcrossInstalled, 0);
   assert.equal(before.global.score, 0);
