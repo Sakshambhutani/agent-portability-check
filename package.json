@@ -1,6 +1,6 @@
 {
   "name": "agent-portability-check",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A privacy-first CLI that checks how portable your AI agent setup is across Claude Code, Codex, and Cursor.",
   "type": "module",
   "bin": {
