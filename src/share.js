@@ -34,6 +34,7 @@ export function createShareInfo(report, {
   url.searchParams.set('score', report.global.score === null ? 'na' : String(report.global.score));
   url.searchParams.set('total', String(report.global.totalSkills));
   url.searchParams.set('portable', String(report.global.portableAcrossInstalled));
+  url.searchParams.set('ready', String(report.global.portableReadySkills ?? report.global.sharedFormatSkills));
   url.searchParams.set('shared', String(report.global.sharedFormatSkills));
   url.searchParams.set('drift', String(report.global.drift.length));
   url.searchParams.set('agents', report.installedHarnesses.map(h => h.key).join(','));
