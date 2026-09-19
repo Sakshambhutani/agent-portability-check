@@ -44,10 +44,9 @@
     <p class="lead">Check your skills before moving between Codex, Claude Code, and Cursor. Get a per-skill answer: <strong>Ready</strong>, <strong>Auto-fix</strong>, or <strong>Manual attention</strong>.</p>
 
     <div class="targets" aria-label="Choose a migration target">
-      <button class="target" data-target="claude">Moving to Claude Code</button>
-      <button class="target" data-target="codex">Moving to Codex</button>
-      <button class="target" data-target="cursor">Moving to Cursor</button>
-      <button class="target" data-target="">Check current setup</button>
+      <button class="target" data-target="claude" data-runtime="local">Moving to Claude Code</button>
+      <button class="target" data-target="codex" data-runtime="local">Moving to Codex</button>
+      <button class="target" data-target="cursor" data-runtime="local">Moving to Cursor</button>\n      <button class="target" data-target="cursor" data-runtime="cloud">Moving to Cursor Cloud</button>\n      <button class="target" data-target="" data-runtime="local">Check current setup</button>
     </div>
 
     <div id="refbox" class="ref"></div>
@@ -106,7 +105,9 @@ Manual attention     1
 const params = new URLSearchParams(location.search);
 const ref = (params.get('ref') || '').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
 const wantsFix = params.get('fix') === '1';
+const team = (params.get('team') || '').replace(/[^A-Za-z0-9_-]/g,'').slice(0,40);
 const initialTarget = ['claude','codex','cursor'].includes(params.get('target')) ? params.get('target') : (wantsFix ? '' : 'claude');
+const initialRuntime = params.get('runtime') === 'cloud' && initialTarget === 'cursor' ? 'cloud' : 'local';
 
 const labels = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', '': 'your current setup' };
 const targetButtons = [...document.querySelectorAll('.target')];
@@ -114,26 +115,19 @@ const commandEl = document.getElementById('command');
 const copyEl = document.getElementById('copy');
 const exampleHead = document.getElementById('exampleHead');
 const exampleText = document.getElementById('exampleText');
-let selectedTarget = initialTarget;
-
+let selectedTarget = initialTarget;\nlet selectedRuntime = initialRuntime;\n
 function buildCommand() {
   return [
     'npx github:Sakshambhutani/agent-portability-check',
-    selectedTarget ? '--target ' + selectedTarget : '',
-    wantsFix ? '--fix' : '',
-    ref ? '--ref ' + ref : ''
-  ].filter(Boolean).join(' ');
+    selectedTarget ? '--target ' + selectedTarget : '',\n    selectedRuntime === 'cloud' ? '--runtime cloud' : '',\n    wantsFix ? '--fix' : '',\n    ref ? '--ref ' + ref : '',\n    team ? '--team ' + team : ''\n  ].filter(Boolean).join(' ');
 }
 
 function updateUI() {
-  targetButtons.forEach(button => button.classList.toggle('active', button.dataset.target === selectedTarget));
-  commandEl.textContent = buildCommand();
+  targetButtons.forEach(button => button.classList.toggle('active', button.dataset.target === selectedTarget && (button.dataset.runtime || 'local') === selectedRuntime));\n  commandEl.textContent = buildCommand();
   copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy 10-second check';
 
   if (selectedTarget) {
-    const label = labels[selectedTarget];
-    exampleHead.textContent = 'Example · migration to ' + label;
-    exampleText.textContent =
+    const label = labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '');\n    exampleHead.textContent = 'Example · migration to ' + label;\n    exampleText.textContent =
 `TARGET COMPATIBILITY — ${label}
 ────────────────────────────────────
 Skills checked       7
@@ -158,17 +152,11 @@ Run with --fix to preview safe changes.`;
   }
 
   const url = new URL(location.href);
-  if (selectedTarget) url.searchParams.set('target', selectedTarget);
-  else url.searchParams.delete('target');
-  history.replaceState({}, '', url);
-}
+  if (selectedTarget) url.searchParams.set('target', selectedTarget);\n  else url.searchParams.delete('target');\n  if (selectedRuntime === 'cloud') url.searchParams.set('runtime','cloud');\n  else url.searchParams.delete('runtime');\n  history.replaceState({}, '', url);\n}
 
 targetButtons.forEach(button => {
   button.addEventListener('click', () => {
-    selectedTarget = button.dataset.target;
-    updateUI();
-    track('apc_target_selected', { target_agent: selectedTarget || 'current' });
-  });
+    selectedTarget = button.dataset.target;\n    selectedRuntime = button.dataset.runtime || 'local';\n    updateUI();\n    track('apc_target_selected', { target_agent: selectedTarget || 'current', target_runtime: selectedRuntime });\n  });
 });
 
 if (ref || wantsFix) {
@@ -196,12 +184,12 @@ async function track(event, extra={}) {
   } catch {}
 }
 
-track('apc_landing_viewed', { target_agent:selectedTarget || 'current' });
+track('apc_landing_viewed', { target_agent:selectedTarget || 'current', target_runtime:selectedRuntime });
 
 copyEl.addEventListener('click', async () => {
   await navigator.clipboard.writeText(buildCommand());
   copyEl.textContent = wantsFix ? 'Copied — paste in Terminal' : 'Copied — paste in Terminal';
-  track('apc_command_copied', { target_agent:selectedTarget || 'current' });
+  track('apc_command_copied', { target_agent:selectedTarget || 'current', target_runtime:selectedRuntime });
 });
 
 updateUI();
