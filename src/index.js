@@ -7,8 +7,8 @@ function parseArgs(argv) {
   const args = { cwd: process.cwd(), output: '.agent-portability', json: false, write: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if ((a === '--path' || a === '-p') && argv[i+1]) args.cwd = path.resolve(argv[++i]);
-    else if ((a === '--output' || a === '-o') && argv[i+1]) args.output = argv[++i];
+    if ((a === '--path' || a === '-p') && argv[i + 1]) args.cwd = path.resolve(argv[++i]);
+    else if ((a === '--output' || a === '-o') && argv[i + 1]) args.output = argv[++i];
     else if (a === '--json') args.json = true;
     else if (a === '--no-write') args.write = false;
     else if (a === '--help' || a === '-h') args.help = true;
@@ -20,34 +20,66 @@ function printHelp() {
   console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>     Project to scan (default: current directory)\n  -o, --output <dir>   Report folder (default: .agent-portability)\n      --json           Print the full report as JSON\n      --no-write       Do not write HTML/SVG/JSON files\n  -h, --help           Show help\n`);
 }
 
-function icon(level) {
+function mark(found) { return found ? '✓' : '✕'; }
+function findingIcon(level) {
   if (level === 'good') return '✓';
   if (level === 'high') return '✕';
   if (level === 'info') return '•';
   return '⚠';
 }
 
+function printInstalled(report) {
+  const installed = new Map(report.installedHarnesses.map(h => [h.key, h]));
+  console.log('\nAgent tools detected');
+  for (const [key, label] of [['codex', 'Codex'], ['claude', 'Claude Code'], ['cursor', 'Cursor']]) {
+    const item = installed.get(key);
+    const detail = item ? ` (${item.evidence.map(e => e.type).join(', ')})` : '';
+    console.log(`${mark(Boolean(item))} ${label}${detail}`);
+  }
+}
+
+function printFootprints(report) {
+  console.log('\nConfig footprints found');
+  if (!report.configFootprints.length) {
+    console.log('none');
+    return;
+  }
+  const installed = new Set(report.installedHarnesses.map(h => h.key));
+  for (const f of report.configFootprints) {
+    const suffix = installed.has(f.key) ? '' : '  (config only; tool not detected)';
+    console.log(`• ${f.path} — ${f.label}${suffix}`);
+  }
+}
+
+function printScope(title, data, installedCount) {
+  console.log(`\n${title}`);
+  console.log(`Skills              ${data.totalSkills}`);
+  console.log(`Shared-format       ${data.sharedFormatSkills} / ${data.totalSkills}`);
+  if (installedCount >= 2) {
+    console.log(`Across all agents   ${data.portableAcrossInstalled} / ${data.totalSkills}`);
+    console.log(`Portability score   ${data.score === null ? 'N/A' : `${data.score}%`}`);
+  } else {
+    console.log('Cross-agent score   N/A (need at least 2 detected agents)');
+  }
+  console.log(`Drifted copies      ${data.drift.length}`);
+}
+
 const args = parseArgs(process.argv.slice(2));
 if (args.help) { printHelp(); process.exit(0); }
 
 const report = scan({ cwd: args.cwd });
-if (args.json) console.log(JSON.stringify(report, null, 2));
-else {
-  const scoreText = report.score === null ? 'N/A' : `${report.score} / 100`;
+if (args.json) {
+  console.log(JSON.stringify(report, null, 2));
+} else {
   console.log('\nAgent Portability Check');
   console.log('────────────────────────────────────');
-  console.log(`PORTABILITY SCORE   ${scoreText}`);
-  console.log(`Harness footprints  ${report.activeHarnesses.join(', ') || 'none detected'}`);
-  console.log(`Unique skills       ${report.totalSkills}`);
-  console.log(`Cross-harness       ${report.crossHarnessSkills} / ${report.totalSkills}`);
-  console.log(`Fully portable      ${report.fullyPortableSkills} / ${report.totalSkills}`);
-  console.log(`Drifted copies      ${report.drift.length}`);
-  console.log('');
-  for (const f of report.findings) console.log(`${icon(f.level)} ${f.text}`);
-  if (report.score !== null) {
-    console.log('\nScore = average portability of your unique skills.');
-    console.log('Shared .agents/skills = 100%; identical copies in 2 harnesses = 50%; one harness/drift = 0%.');
-  }
+  console.log(`Current project      ${report.cwd}`);
+  printInstalled(report);
+  printFootprints(report);
+  printScope('GLOBAL SETUP', report.global, report.installedHarnesses.length);
+  printScope('THIS PROJECT', report.project, report.installedHarnesses.length);
+  console.log('\nWhat stood out');
+  for (const f of report.findings) console.log(`${findingIcon(f.level)} ${f.text}`);
 }
 
 if (args.write) {
