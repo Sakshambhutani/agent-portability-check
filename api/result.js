@@ -42,7 +42,7 @@ export default function handler(req, res) {
   const origin = `https://${req.headers.host}`;
   const canonical = new URL(req.url, origin).toString();
   const checkUrl = `${origin}/?ref=${encodeURIComponent(ref)}`;
-  const improveUrl = `${origin}/?ref=${encodeURIComponent(ref)}&fix=1`;
+  const fixCommand = `npx github:Sakshambhutani/agent-portability-check --fix${ref ? ` --ref ${ref}` : ''}`;
 
   const title = portableReady
     ? 'My AI setup is 100% portable-ready'
@@ -161,18 +161,21 @@ export default function handler(req, res) {
     ` : `
       <div class="insight">
         <strong>This is the before state.</strong><br>
-        Make your skills portable-ready, rescan, and unlock the shareable achievement card.
+        The fixer will preview changes first, keep your original skills, avoid overwrites, then rescan.
       </div>
+      <div class="copybox" id="fixcommand">${esc(fixCommand)}</div>
       <div class="actions">
-        <a id="improve" class="primary" href="${esc(improveUrl)}">Improve my setup →</a>
+        <button id="copyFix" class="primary">Copy fix command</button>
         <button id="copy" class="secondary">Copy result link</button>
       </div>
+      <p class="muted" id="fixhint" style="margin-top:12px">Paste the copied command into Terminal. The CLI will ask before changing anything.</p>
     `}
   </div>
 </div>
 <script>
 const referralId = ${JSON.stringify(ref)};
 const postText = ${JSON.stringify(postText)};
+const fixCommand = ${JSON.stringify(fixCommand)};
 const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
 localStorage.setItem('apc_web_id', anon);
 
@@ -195,14 +198,20 @@ track('apc_referral_page_opened');
 const linkedinEl = document.getElementById('linkedin');
 const xEl = document.getElementById('xshare');
 const checkEl = document.getElementById('check');
-const improveEl = document.getElementById('improve');
+const copyFixEl = document.getElementById('copyFix');
 const copyPostEl = document.getElementById('copyPost');
 const copyEl = document.getElementById('copy');
 
 if (linkedinEl) linkedinEl.addEventListener('click',()=>track('apc_linkedin_share_clicked',{share_surface:'linkedin'}));
 if (xEl) xEl.addEventListener('click',()=>track('apc_x_share_clicked',{share_surface:'x'}));
 if (checkEl) checkEl.addEventListener('click',()=>track('apc_check_yours_clicked'));
-if (improveEl) improveEl.addEventListener('click',()=>track('apc_fix_previewed'));
+if (copyFixEl) copyFixEl.addEventListener('click',async()=>{
+  await navigator.clipboard.writeText(fixCommand);
+  copyFixEl.textContent='Copied — paste in Terminal';
+  const hint = document.getElementById('fixhint');
+  if (hint) hint.textContent='Now paste into Terminal and press Enter. The CLI will preview the safe changes before applying them.';
+  track('apc_fix_command_copied');
+});
 
 if (copyPostEl) copyPostEl.addEventListener('click',async()=>{
   await navigator.clipboard.writeText(postText);
