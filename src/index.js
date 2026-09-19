@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import readline from 'node:readline/promises';
 import { scan } from './scan.js';
 import { writeReports } from './report.js';
 import { createShareInfo, normalizeReferralId } from './share.js';
+import { planPortableReadyFix, applyPortableReadyFix } from './fix.js';
 import {
   buildScanTelemetry,
   captureTelemetry,
@@ -20,6 +22,8 @@ function parseArgs(argv) {
     write: true,
     analytics: null,
     ref: '',
+    fix: false,
+    yes: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -30,13 +34,15 @@ function parseArgs(argv) {
     else if (a === '--no-write') args.write = false;
     else if (a === '--analytics' && argv[i + 1]) args.analytics = argv[++i].toLowerCase();
     else if (a === '--ref' && argv[i + 1]) args.ref = normalizeReferralId(argv[++i]);
+    else if (a === '--fix') args.fix = true;
+    else if (a === '--yes' || a === '-y') args.yes = true;
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --fix              Preview and apply safe portable-ready fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
 }
 
 function mark(found) { return found ? '✓' : '✕'; }
@@ -60,6 +66,44 @@ function printShareLink(shareInfo) {
   if (process.platform === 'darwin') {
     console.log('Tip: in macOS Terminal, Command-click the URL if a normal click does not open it.');
   }
+}
+
+async function confirmFix() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await rl.question('\nApply these changes? [y/N] ');
+    return /^y(es)?$/i.test(answer.trim());
+  } finally {
+    rl.close();
+  }
+}
+
+function printFixPlan(plan, report) {
+  const before = report.global.portableReadyPercent;
+  console.log('\nPORTABLE-READY FIX');
+  console.log('────────────────────────────────────');
+  console.log(`Current readiness    ${before === null ? 'N/A' : `${before}%`}`);
+  console.log(`Skills to canonicalize  ${plan.copyPlans.length}`);
+  console.log(`Claude adapters         ${plan.adapterPlans.length}`);
+  console.log(`Conflicts needing review ${plan.conflicts.length}`);
+
+  if (plan.copyPlans.length) {
+    console.log('\nWill copy to ~/.agents/skills (originals stay untouched):');
+    for (const item of plan.copyPlans) console.log(`  + ${item.name}`);
+  }
+
+  if (plan.adapterPlans.length) {
+    console.log('\nWill add Claude skill adapters:');
+    for (const item of plan.adapterPlans) console.log(`  + ${item.name}`);
+  }
+
+  if (plan.conflicts.length) {
+    console.log('\nWill NOT auto-fix these conflicts:');
+    for (const item of plan.conflicts) console.log(`  ! ${item.name}: ${item.reason}`);
+  }
+
+  console.log('\nSafety: no existing skill files are deleted or overwritten.');
 }
 
 function printInstalled(report) {
@@ -126,7 +170,37 @@ async function main() {
     return;
   }
 
-  const report = scan({ cwd: args.cwd });
+  let report = scan({ cwd: args.cwd });
+  let fixPlan = null;
+  let fixApplied = false;
+
+  if (args.fix) {
+    fixPlan = planPortableReadyFix(report, { cwd: args.cwd });
+    printFixPlan(fixPlan, report);
+
+    if (fixPlan.changeCount > 0) {
+      const approved = args.yes || await confirmFix();
+      if (approved) {
+        applyPortableReadyFix(fixPlan);
+        const before = report.global.portableReadyPercent;
+        report = scan({ cwd: args.cwd });
+        const after = report.global.portableReadyPercent;
+        fixApplied = true;
+
+        console.log('\n✓ Fix applied');
+        console.log(`Portable readiness   ${before === null ? 'N/A' : `${before}%`} → ${after === null ? 'N/A' : `${after}%`}`);
+        if (after === 100) console.log('🏆 100% PORTABLE-READY');
+      } else {
+        console.log('\nNo changes applied.');
+        if (!process.stdin.isTTY && !args.yes) {
+          console.log('Run again with --fix --yes to apply in a non-interactive shell.');
+        }
+      }
+    } else if (fixPlan.conflicts.length === 0) {
+      console.log('\n✓ Nothing to change. Your global skills are already in shared format.');
+    }
+  }
+
   const shareInfo = createShareInfo(report);
 
   let files = null;
@@ -163,6 +237,16 @@ async function main() {
   if (preference.enabled && telemetryDestinationConfigured()) {
     const baseProperties = buildScanTelemetry(report);
     if (args.ref) baseProperties.referral_id = args.ref;
+
+    if (args.fix && fixPlan) {
+      await captureTelemetry('apc_fix_previewed', baseProperties);
+      if (fixApplied) {
+        await captureTelemetry('apc_fix_applied', baseProperties);
+        if (report.global.portableReadyPercent === 100) {
+          await captureTelemetry('apc_portable_ready_achieved', baseProperties);
+        }
+      }
+    }
 
     if (preference.justEnabled) {
       await captureTelemetry('apc_analytics_enabled', baseProperties);
