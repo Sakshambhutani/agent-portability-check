@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createShareInfo, normalizeReferralId } from '../src/share.js';
+import { createShareInfo, normalizeReferralId, normalizeTeamCode } from '../src/share.js';
 
 test('normalizes inbound referral ids', () => {
   assert.equal(normalizeReferralId('abc-123_BAD!!'), 'abc-123_BAD');
@@ -61,4 +61,26 @@ test('includes target migration outcome without local details', () => {
   assert.match(info.url, /targetAuto=0/);
   assert.match(info.url, /targetManual=0/);
   assert.equal(info.url.includes('/Users/'), false);
+});
+
+
+test('normalizes team invite codes and carries them into share URLs', () => {
+  assert.equal(normalizeTeamCode('Team_ABC-123!!'), 'Team_ABC-123');
+  const report = {
+    installedHarnesses: [{ key: 'codex' }],
+    global: {
+      score: null,
+      totalSkills: 1,
+      portableAcrossInstalled: 0,
+      portableReadySkills: 1,
+      sharedFormatSkills: 1,
+      drift: [],
+    },
+  };
+  const info = createShareInfo(report, {
+    publicUrl: 'https://example.com',
+    referralId: 'refteam',
+    teamCode: 'Team_ABC-123',
+  });
+  assert.match(info.url, /team=Team_ABC-123/);
 });

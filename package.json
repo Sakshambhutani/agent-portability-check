@@ -1,7 +1,7 @@
 {
   "name": "agent-portability-check",
-  "version": "0.6.0",
-  "description": "Check which AI agent skills will carry over to Claude Code, Codex, or Cursor, and safely fix portability issues.",
+  "version": "0.7.0",
+  "description": "Check which AI agent skills, dependencies, and context will carry over to Claude Code, Codex, Cursor, or Cursor Cloud.",
   "type": "module",
   "bin": {
     "agent-portability-check": "./src/index.js"

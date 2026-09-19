@@ -322,7 +322,7 @@ async function main() {
 
   if (args.write) {
     const out = path.resolve(args.cwd, args.output);
-    files = writeReports(report, out, { shareUrl: shareInfo?.url });
+    files = writeReports(report, out, { shareUrl: shareInfo?.url, targetCompatibility: targetReport });
     if (!args.json) {
       console.log('\nShare card:  ' + files.svgPath);
       console.log('Full report: ' + files.htmlPath);

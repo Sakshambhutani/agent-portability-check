@@ -1,6 +1,6 @@
 # Agent Portability Check
 
-**Switching AI agents? See which skills will carry over, what can be fixed automatically, and what needs manual attention.**
+**Switching AI agents? See which skills, dependencies, and context will carry over, what can be fixed automatically, and what needs manual attention.**
 
 Public site: https://agent-portability-check.vercel.app
 
@@ -106,6 +106,11 @@ The target simulator checks **skill-package compatibility**, including:
 - folder-name alignment
 - missing local companion files under `scripts/`, `references/`, and `assets/`
 - same-name drift
+- referenced local CLI/interpreter availability
+- required environment variable presence (names only; never values)
+- explicit MCP server references against target config
+- local-only vs Cursor Cloud skill availability
+- harness-specific instruction gaps such as `CLAUDE.md`, `AGENTS.md`, and Cursor rules
 - whether a location/discovery fix is safe to automate
 
 The result is:
@@ -120,9 +125,9 @@ See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the current harness assum
 
 A structurally ready skill package can still fail at runtime because of:
 
-- MCP tools/servers
-- environment variables or credentials
-- external CLIs/language runtimes
+- runtime behavior of MCP tools/servers after configuration
+- secret values or credential validity
+- semantic correctness of external CLIs/language runtimes
 - network access
 - permissions
 - model behavior
@@ -175,6 +180,30 @@ Example:
 ```md
 [![Agent Portability](https://agent-portability-check.vercel.app/api/badge?target=claude&ready=7&total=7)](https://agent-portability-check.vercel.app)
 ```
+
+## Save result / Team Compare
+
+After a successful result, an optional identified flow can appear:
+
+```text
+achievement
+  ↓
+Save result / Compare with team
+  ↓
+explicit email or GitHub sign-in
+  ↓
+create/join team
+  ↓
+teammates run local scans
+  ↓
+summary leaderboard
+```
+
+The scan itself remains account-free and local. Identity is only requested after an explicit click.
+
+Team Compare uses Supabase and is hidden unless the deployment has all required Supabase environment variables and the migration in [docs/TEAM_COMPARE.md](docs/TEAM_COMPARE.md) has been applied.
+
+Anonymous growth analytics and the exact PostHog funnel are documented in [docs/ANALYTICS.md](docs/ANALYTICS.md).
 
 ## Privacy
 

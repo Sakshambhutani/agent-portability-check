@@ -9,58 +9,65 @@ jobs:
   health:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for current Vercel content
+      - name: Wait for exact production release
         run: |
           set -euo pipefail
-          for attempt in {1..12}; do
-            page="$(curl -fsS https://agent-portability-check.vercel.app/ || true)"
-            if echo "$page" | grep -q 'See which skills won’t carry over in 10 seconds' &&
-               echo "$page" | grep -q -- '--target claude' &&
-               echo "$page" | grep -q 'Auto-fix' &&
-               echo "$page" | grep -q 'Manual attention'; then
-              echo "Latest landing page is live."
+          for attempt in {1..24}; do
+            version="$(curl -fsS https://agent-portability-check.vercel.app/api/version || true)"
+            if echo "$version" | grep -q '"version":"0.7.0"'; then
+              echo "v0.7.0 is live."
               exit 0
             fi
-            echo "Waiting for Vercel production alias (attempt $attempt/12)..."
+            echo "Waiting for Vercel production alias (attempt $attempt/24)..."
             sleep 10
           done
-          echo "Expected landing content never became live."
           exit 1
 
-      - name: Check production health endpoint
+      - name: Check landing and Cursor Cloud hook
+        run: |
+          set -euo pipefail
+          page="$(curl -fsS https://agent-portability-check.vercel.app/)"
+          echo "$page" | grep -q 'See which skills won’t carry over in 10 seconds'
+          echo "$page" | grep -q 'Moving to Cursor Cloud'
+          echo "$page" | grep -q -- '--target claude'
+
+      - name: Check production telemetry
         run: |
           set -euo pipefail
           response="$(curl -fsS https://agent-portability-check.vercel.app/api/health)"
-          echo "$response"
           echo "$response" | grep -q '"telemetryConfigured":true'
           echo "$response" | grep -q '"tokenValid":true'
 
-      - name: Send synthetic telemetry event
-        run: |
-          set -euo pipefail
           response="$(curl -fsS -X POST https://agent-portability-check.vercel.app/api/telemetry \
             -H 'Content-Type: application/json' \
             --data '{"event":"apc_health_check","distinct_id":"github_health_check","properties":{"platform":"ci","agent_count":0}}')"
-          echo "$response"
           echo "$response" | grep -q '"ok":true'
+
+      - name: Check before-state result
+        run: |
+          set -euo pipefail
+          url='https://agent-portability-check.vercel.app/r/ci-before?v=6&score=na&total=7&portable=0&ready=2&shared=2&drift=1&agents=codex&target=claude&targetReady=2&targetTotal=7&targetAuto=3&targetManual=2&targetContext=1&targetDeps=1&runtime=local&targetComplete=0'
+          page="$(curl -fsS "$url")"
+          echo "$page" | grep -q 'Copy fix command'
+          echo "$page" | grep -q '1 dependency blockers'
+          echo "$page" | grep -q '1 context gaps'
 
       - name: Check completed target trophy page
         run: |
           set -euo pipefail
-          url='https://agent-portability-check.vercel.app/r/ci-target?v=5&score=na&total=7&portable=0&ready=7&shared=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0'
+          url='https://agent-portability-check.vercel.app/r/ci-target?v=6&score=na&total=7&portable=0&ready=7&shared=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1'
           page="$(curl -fsS "$url")"
           echo "$page" | grep -q '7 / 7'
-          echo "$page" | grep -q 'ready for Claude Code'
           echo "$page" | grep -q 'Copy README badge'
           echo "$page" | grep -q 'Open LinkedIn'
+          echo "$page" | grep -q 'teamAction'
           echo "$page" | grep -q 'og:image'
 
       - name: Check dynamic OG image and README badge
         run: |
           set -euo pipefail
-
           curl -fsS -D /tmp/og-headers.txt -o /tmp/og-image.bin \
-            'https://agent-portability-check.vercel.app/api/og?v=5&score=na&total=7&portable=0&ready=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0'
+            'https://agent-portability-check.vercel.app/api/og?v=6&score=na&total=7&portable=0&ready=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1'
           grep -Eiq 'content-type: image/(png|webp)' /tmp/og-headers.txt
           test -s /tmp/og-image.bin
 
@@ -68,3 +75,11 @@ jobs:
             'https://agent-portability-check.vercel.app/api/badge?target=claude&ready=7&total=7'
           grep -Eiq 'content-type: image/svg\+xml' /tmp/badge-headers.txt
           grep -q '7/7 ready' /tmp/badge.svg
+
+      - name: Check team page shell and Supabase config endpoint
+        run: |
+          set -euo pipefail
+          team_page="$(curl -fsS https://agent-portability-check.vercel.app/team/preview-team)"
+          echo "$team_page" | grep -q 'TEAM COMPARE'
+          config="$(curl -fsS https://agent-portability-check.vercel.app/api/public-config)"
+          echo "$config" | grep -q '"configured":'
