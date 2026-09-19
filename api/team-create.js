@@ -20,6 +20,8 @@ export default async function handler(req, res) {
 
   const input = req.body && typeof req.body === 'object' ? req.body : {};
   const name = cleanDisplayName(input.name) || 'My Agent Team';
+  const target = ['claude','codex','cursor'].includes(input.target) ? input.target : null;
+  const runtime = input.runtime === 'cloud' ? 'cloud' : 'local';
   const displayName =
     cleanDisplayName(input.display_name) ||
     cleanDisplayName(auth.user.user_metadata?.full_name) ||
@@ -34,6 +36,8 @@ export default async function handler(req, res) {
         owner_user_id: auth.user.id,
         name,
         invite_code: inviteCode,
+        target,
+        runtime,
       },
       prefer: 'return=representation',
     });
@@ -58,6 +62,8 @@ export default async function handler(req, res) {
         name: team.name,
         invite_code: inviteCode,
         invite_url: `${origin}/team/${inviteCode}`,
+        target,
+        runtime,
       },
     });
   } catch (error) {
