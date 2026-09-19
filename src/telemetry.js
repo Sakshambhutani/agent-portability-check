@@ -4,11 +4,12 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import readline from 'node:readline/promises';
 
+const DEFAULT_PUBLIC_URL = 'https://agent-portability-check.vercel.app';
 const POSTHOG_HOST = process.env.APC_POSTHOG_HOST || 'https://us.i.posthog.com';
 const POSTHOG_TOKEN = process.env.APC_POSTHOG_TOKEN || '';
-const TELEMETRY_ENDPOINT = process.env.APC_TELEMETRY_ENDPOINT || '';
+const TELEMETRY_ENDPOINT = process.env.APC_TELEMETRY_ENDPOINT || `${DEFAULT_PUBLIC_URL}/api/telemetry`;
 const CONSENT_VERSION = 1;
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.4.1';
 
 function configPath(home = os.homedir()) {
   return path.join(home, '.agent-portability', 'config.json');
