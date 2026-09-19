@@ -5,6 +5,7 @@ import { scan } from './scan.js';
 import { writeReports } from './report.js';
 import { createShareInfo, normalizeReferralId } from './share.js';
 import { planPortableReadyFix, applyPortableReadyFix } from './fix.js';
+import { analyzeTargetCompatibility, TARGETS } from './compatibility.js';
 import {
   buildScanTelemetry,
   captureTelemetry,
@@ -24,6 +25,7 @@ function parseArgs(argv) {
     ref: '',
     fix: false,
     yes: false,
+    target: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -34,6 +36,7 @@ function parseArgs(argv) {
     else if (a === '--no-write') args.write = false;
     else if (a === '--analytics' && argv[i + 1]) args.analytics = argv[++i].toLowerCase();
     else if (a === '--ref' && argv[i + 1]) args.ref = normalizeReferralId(argv[++i]);
+    else if (a === '--target' && argv[i + 1]) args.target = argv[++i].toLowerCase();
     else if (a === '--fix') args.fix = true;
     else if (a === '--yes' || a === '-y') args.yes = true;
     else if (a === '--help' || a === '-h') args.help = true;
@@ -42,7 +45,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --fix              Preview and apply safe portable-ready fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
 }
 
 function mark(found) { return found ? '✓' : '✕'; }
@@ -106,6 +109,39 @@ function printFixPlan(plan, report) {
   console.log('\nSafety: no existing skill files are deleted or overwritten.');
 }
 
+function compatibilityIcon(status) {
+  if (status === 'ready') return '✓';
+  if (status === 'auto-fix') return '⚡';
+  return '✕';
+}
+
+function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } = {}) {
+  if (!result) return;
+
+  console.log(`\n${heading} — ${result.targetLabel}`);
+  console.log('────────────────────────────────────');
+  console.log(`Skills checked       ${result.summary.total}`);
+  console.log(`Ready                ${result.summary.ready}`);
+  console.log(`Auto-fix             ${result.summary.autoFix}`);
+  console.log(`Manual attention     ${result.summary.manual}`);
+  console.log(`Ready now            ${result.readyPercent === null ? 'N/A' : `${result.readyPercent}%`}`);
+  if (!result.targetInstalled) {
+    console.log(`Mode                 migration simulation (target not installed)`);
+  }
+
+  if (result.skills.length) {
+    console.log('');
+    for (const skill of result.skills) {
+      const label = skill.status === 'auto-fix'
+        ? 'AUTO-FIX'
+        : skill.status.toUpperCase();
+      console.log(`${compatibilityIcon(skill.status)} ${skill.name} — ${label}`);
+      console.log(`  ${skill.reason}`);
+      if (skill.fix) console.log(`  Fix: ${skill.fix}`);
+    }
+  }
+}
+
 function printInstalled(report) {
   const installed = new Map(report.installedHarnesses.map(h => [h.key, h]));
   console.log('\nAgent tools detected');
@@ -149,6 +185,12 @@ async function main() {
     return;
   }
 
+  if (args.target && !TARGETS[args.target]) {
+    console.error('Invalid --target value. Use: claude, codex, or cursor.');
+    process.exitCode = 1;
+    return;
+  }
+
   if (args.analytics) {
     if (!['on', 'off', 'status'].includes(args.analytics)) {
       console.error('Invalid --analytics value. Use: on, off, or status.');
@@ -171,12 +213,24 @@ async function main() {
   }
 
   let report = scan({ cwd: args.cwd });
+  let targetReport = args.target
+    ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd })
+    : null;
   let fixPlan = null;
   let fixApplied = false;
 
   if (args.fix) {
-    fixPlan = planPortableReadyFix(report, { cwd: args.cwd });
+    const blockedSkillNames = targetReport
+      ? targetReport.skills.filter(skill => skill.status === 'manual').map(skill => skill.name)
+      : [];
+
+    fixPlan = planPortableReadyFix(report, {
+      cwd: args.cwd,
+      target: args.target,
+      blockedSkillNames,
+    });
     printFixPlan(fixPlan, report);
+    if (targetReport) printTargetCompatibility(targetReport, { heading: 'BEFORE FIX' });
 
     if (fixPlan.changeCount > 0) {
       const approved = args.yes || await confirmFix();
@@ -184,11 +238,20 @@ async function main() {
         applyPortableReadyFix(fixPlan);
         const before = report.global.portableReadyPercent;
         report = scan({ cwd: args.cwd });
+        targetReport = args.target
+          ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd })
+          : null;
         const after = report.global.portableReadyPercent;
         fixApplied = true;
 
         console.log('\n✓ Fix applied');
         console.log(`Portable readiness   ${before === null ? 'N/A' : `${before}%`} → ${after === null ? 'N/A' : `${after}%`}`);
+        if (targetReport) {
+          printTargetCompatibility(targetReport, { heading: 'AFTER FIX' });
+          if (targetReport.summary.autoFix === 0 && targetReport.summary.manual === 0) {
+            console.log(`🏆 READY FOR ${targetReport.targetLabel.toUpperCase()}`);
+          }
+        }
         if (after === 100) console.log('🏆 100% PORTABLE-READY');
       } else {
         console.log('\nNo changes applied.');
@@ -206,7 +269,10 @@ async function main() {
   let files = null;
 
   if (args.json) {
-    console.log(JSON.stringify(report, null, 2));
+    console.log(JSON.stringify({
+      ...report,
+      targetCompatibility: targetReport,
+    }, null, 2));
   } else {
     console.log('\nAgent Portability Check');
     console.log('────────────────────────────────────');
@@ -217,6 +283,7 @@ async function main() {
     printScope('THIS PROJECT', report.project, report.installedHarnesses.length);
     console.log('\nWhat stood out');
     for (const f of report.findings) console.log(`${findingIcon(f.level)} ${f.text}`);
+    if (targetReport && !args.fix) printTargetCompatibility(targetReport);
   }
 
   if (args.write) {
