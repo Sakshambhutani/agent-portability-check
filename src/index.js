@@ -264,7 +264,7 @@ async function main() {
     }
   }
 
-  const shareInfo = createShareInfo(report);
+  const shareInfo = createShareInfo(report, { targetCompatibility: targetReport });
 
   let files = null;
 
