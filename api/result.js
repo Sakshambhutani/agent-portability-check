@@ -37,15 +37,28 @@ export default function handler(req, res) {
   const origin = `https://${req.headers.host}`;
   const canonical = new URL(req.url, origin).toString();
   const checkUrl = `${origin}/?ref=${encodeURIComponent(ref)}`;
-  const title = score === null ? 'My AI setup portability' : `My AI setup is ${score}% portable`;
+  const title = score === null
+    ? `${total} AI skills in my setup`
+    : `My AI setup is ${score}% portable`;
   const description = score === null
-    ? `${total} global skills scanned across ${agentLabel}.`
+    ? `${total} global skills scanned across ${agentLabel}. No cross-agent score yet.`
     : `${portable} of ${total} global skills are portable across ${agentLabel}.`;
+
+  const og = new URL('/api/og', origin);
+  og.searchParams.set('score', score === null ? 'na' : String(score));
+  og.searchParams.set('total', String(total));
+  og.searchParams.set('portable', String(portable));
+  og.searchParams.set('drift', String(drift));
+  og.searchParams.set('agents', agents.join(','));
+
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
   const xText = score === null
-    ? `I checked how portable my AI setup is across agents.`
-    : `My AI setup is ${score}% portable across ${agentLabel}. ${portable}/${total} skills travel cleanly.`;
+    ? `I checked my AI setup: ${total} global skills across ${agentLabel}. Curious how portable yours is?`
+    : `My AI setup is ${score}% portable across ${agentLabel}. ${portable}/${total} skills travel cleanly. Curious what yours looks like?`;
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}&url=${encodeURIComponent(canonical)}`;
+  const postText = score === null
+    ? `I checked my AI setup. I have ${total} global skills in ${agentLabel}, but I only use one agent right now so there isn't a cross-agent score yet.\n\nCurious what yours looks like: ${canonical}`
+    : `My AI setup is ${score}% portable across ${agentLabel}.\n\n${portable}/${total} skills travel cleanly and ${drift} have drifted copies.\n\nCheck yours: ${canonical}`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(`<!doctype html>
@@ -59,7 +72,13 @@ export default function handler(req, res) {
   <meta property="og:description" content="${esc(description)}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="${esc(canonical)}">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="${esc(og.toString())}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${esc(title)}">
+  <meta name="twitter:description" content="${esc(description)}">
+  <meta name="twitter:image" content="${esc(og.toString())}">
   <style>
     :root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#0b0d10;color:#f7f8fa}
     body{margin:0;min-height:100vh;display:grid;place-items:center;padding:28px}
@@ -74,6 +93,7 @@ export default function handler(req, res) {
     a,button{appearance:none;border:0;border-radius:12px;padding:13px 17px;font-weight:700;text-decoration:none;cursor:pointer}
     .primary{background:#fff;color:#0b0d10}.secondary{background:#1c232b;color:#fff;border:1px solid #303945}
     .cta{margin-top:24px;padding-top:24px;border-top:1px solid #2a313a}
+    .copybox{margin-top:26px;background:#0d1116;border:1px solid #2a313a;border-radius:16px;padding:18px;white-space:pre-wrap;line-height:1.45;color:#d9e0e7}
     code{font-family:ui-monospace,monospace}
   </style>
 </head>
@@ -82,18 +102,23 @@ export default function handler(req, res) {
   <div class="card">
     <div class="eyebrow">AGENT PORTABILITY CHECK</div>
     <h1>How portable is my AI setup?</h1>
-    <div class="score">${score === null ? 'N/A' : esc(score) + '%'}</div>
-    <div class="muted">${esc(agentLabel)}</div>
+    <div class="score">${score === null ? total : esc(score) + '%'}</div>
+    <div class="muted">${score === null ? 'global skills found · ' : ''}${esc(agentLabel)}</div>
     <div class="stats">
       <span class="pill">${portable} / ${total} portable</span>
       <span class="pill">${drift} drifted</span>
     </div>
     <p>${esc(description)}</p>
+
+    <div class="copybox" id="posttext">${esc(postText)}</div>
+
     <div class="actions">
-      <a id="linkedin" class="primary" href="${esc(linkedin)}" target="_blank" rel="noopener">Share on LinkedIn</a>
+      <button id="copyPost" class="primary">Copy post text</button>
+      <a id="linkedin" class="secondary" href="${esc(linkedin)}" target="_blank" rel="noopener">Open LinkedIn</a>
       <a id="xshare" class="secondary" href="${esc(xUrl)}" target="_blank" rel="noopener">Share on X</a>
       <button id="copy" class="secondary">Copy link</button>
     </div>
+
     <div class="cta">
       <h2>What does yours look like?</h2>
       <p class="muted">One local command. No skill contents are uploaded.</p>
@@ -103,8 +128,10 @@ export default function handler(req, res) {
 </div>
 <script>
 const referralId = ${JSON.stringify(ref)};
+const postText = ${JSON.stringify(postText)};
 const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
 localStorage.setItem('apc_web_id', anon);
+
 async function track(event, extra={}) {
   try {
     await fetch('/api/telemetry', {
@@ -118,10 +145,18 @@ async function track(event, extra={}) {
     });
   } catch {}
 }
+
 track('apc_referral_page_opened');
 document.getElementById('linkedin').addEventListener('click',()=>track('apc_linkedin_share_clicked',{share_surface:'linkedin'}));
 document.getElementById('xshare').addEventListener('click',()=>track('apc_x_share_clicked',{share_surface:'x'}));
 document.getElementById('check').addEventListener('click',()=>track('apc_check_yours_clicked'));
+
+document.getElementById('copyPost').addEventListener('click',async()=>{
+  await navigator.clipboard.writeText(postText);
+  document.getElementById('copyPost').textContent='Post text copied';
+  track('apc_copy_link_clicked',{share_surface:'post_text'});
+});
+
 document.getElementById('copy').addEventListener('click',async()=>{
   await navigator.clipboard.writeText(location.href);
   document.getElementById('copy').textContent='Copied';
