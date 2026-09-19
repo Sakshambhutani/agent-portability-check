@@ -19,15 +19,27 @@ function folderNameForCopy(copy, context) {
 export function planPortableReadyFix(report, {
   home = os.homedir(),
   cwd = report.cwd || process.cwd(),
+  target = null,
+  blockedSkillNames = [],
 } = {}) {
   const targetRoot = path.join(home, '.agents', 'skills');
   const installed = new Set(report.installedHarnesses.map(h => h.key));
+  if (target) installed.add(target);
+  const blocked = new Set(blockedSkillNames);
   const copyPlans = [];
   const adapterPlans = [];
   const conflicts = [];
   const alreadyReady = [];
 
   for (const status of report.global.statuses) {
+    if (blocked.has(status.name)) {
+      conflicts.push({
+        name: status.name,
+        reason: 'Compatibility check found a structural issue that requires manual attention.',
+      });
+      continue;
+    }
+
     if (status.drifted) {
       conflicts.push({
         name: status.name,
