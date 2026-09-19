@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/r/:ref", "destination": "/api/result?ref=:ref" }
+  ],
+  "functions": {
+    "api/*.js": { "maxDuration": 5 }
+  }
+}
