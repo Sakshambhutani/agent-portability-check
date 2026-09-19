@@ -26,6 +26,7 @@ function parseArgs(argv) {
     fix: false,
     yes: false,
     target: null,
+    runtime: 'local',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -37,6 +38,7 @@ function parseArgs(argv) {
     else if (a === '--analytics' && argv[i + 1]) args.analytics = argv[++i].toLowerCase();
     else if (a === '--ref' && argv[i + 1]) args.ref = normalizeReferralId(argv[++i]);
     else if (a === '--target' && argv[i + 1]) args.target = argv[++i].toLowerCase();
+    else if (a === '--runtime' && argv[i + 1]) args.runtime = argv[++i].toLowerCase();
     else if (a === '--fix') args.fix = true;
     else if (a === '--yes' || a === '-y') args.yes = true;
     else if (a === '--help' || a === '-h') args.help = true;
@@ -45,7 +47,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --runtime <mode>    local (default) or cloud; cloud currently means Cursor Cloud\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
 }
 
 function mark(found) { return found ? '✓' : '✕'; }
@@ -86,24 +88,24 @@ function printFixPlan(plan, report) {
   const before = report.global.portableReadyPercent;
   console.log('\nPORTABLE-READY FIX');
   console.log('────────────────────────────────────');
-  console.log(`Current readiness    ${before === null ? 'N/A' : `${before}%`}`);
+  console.log(`Current global readiness  ${before === null ? 'N/A' : `${before}%`}`);
   console.log(`Skills to canonicalize  ${plan.copyPlans.length}`);
   console.log(`Claude adapters         ${plan.adapterPlans.length}`);
   console.log(`Conflicts needing review ${plan.conflicts.length}`);
 
   if (plan.copyPlans.length) {
-    console.log('\nWill copy to ~/.agents/skills (originals stay untouched):');
-    for (const item of plan.copyPlans) console.log(`  + ${item.name}`);
+    console.log('\nWill create shared-format copies (originals stay untouched):');
+    for (const item of plan.copyPlans) console.log(`  + [${item.scope}] ${item.name} → ${item.targetDir}`);
   }
 
   if (plan.adapterPlans.length) {
     console.log('\nWill add Claude skill adapters:');
-    for (const item of plan.adapterPlans) console.log(`  + ${item.name}`);
+    for (const item of plan.adapterPlans) console.log(`  + [${item.scope}] ${item.name} → ${item.linkPath}`);
   }
 
   if (plan.conflicts.length) {
     console.log('\nWill NOT auto-fix these conflicts:');
-    for (const item of plan.conflicts) console.log(`  ! ${item.name}: ${item.reason}`);
+    for (const item of plan.conflicts) console.log(`  ! [${item.scope || 'global'}] ${item.name}: ${item.reason}`);
   }
 
   console.log('\nSafety: no existing skill files are deleted or overwritten.');
@@ -125,7 +127,10 @@ function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } =
   console.log(`Auto-fix             ${result.summary.autoFix}`);
   console.log(`Manual attention     ${result.summary.manual}`);
   console.log(`Package-ready        ${result.readyPercent === null ? 'N/A' : `${result.readyPercent}%`}`);
-  if (!result.targetInstalled) {
+  console.log(`Dependency blockers ${result.dependencyRiskCount || 0}`);
+  console.log(`Context gaps         ${result.contextRisks?.length || 0}`);
+  console.log(`Runtime              ${result.runtime || 'local'}`);
+  if (!result.targetInstalled && result.runtime !== 'cloud') {
     console.log(`Mode                 migration simulation (target not installed)`);
   }
 
@@ -135,9 +140,24 @@ function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } =
       const label = skill.status === 'auto-fix'
         ? 'AUTO-FIX'
         : skill.status.toUpperCase();
-      console.log(`${compatibilityIcon(skill.status)} ${skill.name} — ${label}`);
+      console.log(`${compatibilityIcon(skill.status)} ${skill.scope === 'project' ? '[project] ' : ''}${skill.name} — ${label}`);
       console.log(`  ${skill.reason}`);
       if (skill.fix) console.log(`  Fix: ${skill.fix}`);
+    }
+  }
+
+  if (result.contextRisks?.length) {
+    console.log('\nContext that will not automatically carry over');
+    for (const risk of result.contextRisks) {
+      console.log(`⚠ ${risk.path}`);
+      console.log(`  ${risk.reason}`);
+    }
+  }
+
+  if (result.localOnlyRisks?.length) {
+    console.log('\nLocal-only / cloud portability risks');
+    for (const risk of result.localOnlyRisks) {
+      console.log(`⚠ ${risk.name}: ${risk.reason}`);
     }
   }
 }
@@ -192,6 +212,16 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  if (!['local', 'cloud'].includes(args.runtime)) {
+    console.error('Invalid --runtime value. Use: local or cloud.');
+    process.exitCode = 1;
+    return;
+  }
+  if (args.runtime === 'cloud' && args.target !== 'cursor') {
+    console.error('--runtime cloud is currently supported only with --target cursor.');
+    process.exitCode = 1;
+    return;
+  }
 
   if (args.analytics) {
     if (!['on', 'off', 'status'].includes(args.analytics)) {
@@ -216,20 +246,22 @@ async function main() {
 
   let report = scan({ cwd: args.cwd });
   let targetReport = args.target
-    ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd })
+    ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
     : null;
   let fixPlan = null;
   let fixApplied = false;
 
   if (args.fix) {
-    const blockedSkillNames = targetReport
-      ? targetReport.skills.filter(skill => skill.status === 'manual').map(skill => skill.name)
+    const blockedSkillKeys = targetReport
+      ? targetReport.skills
+          .filter(skill => skill.status === 'manual')
+          .map(skill => `${skill.scope || 'global'}:${skill.name}`)
       : [];
 
     fixPlan = planPortableReadyFix(report, {
       cwd: args.cwd,
       target: args.target,
-      blockedSkillNames,
+      blockedSkillKeys,
     });
     printFixPlan(fixPlan, report);
     if (targetReport) printTargetCompatibility(targetReport, { heading: 'BEFORE FIX' });
@@ -241,7 +273,7 @@ async function main() {
         const before = report.global.portableReadyPercent;
         report = scan({ cwd: args.cwd });
         targetReport = args.target
-          ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd })
+          ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
           : null;
         const after = report.global.portableReadyPercent;
         fixApplied = true;
@@ -250,9 +282,7 @@ async function main() {
         console.log(`Portable readiness   ${before === null ? 'N/A' : `${before}%`} → ${after === null ? 'N/A' : `${after}%`}`);
         if (targetReport) {
           printTargetCompatibility(targetReport, { heading: 'AFTER FIX' });
-          if (targetReport.summary.autoFix === 0 && targetReport.summary.manual === 0) {
-            console.log(`🏆 ALL SKILLS READY FOR ${targetReport.targetLabel.toUpperCase()}`);
-          }
+          if (targetReport.fullyReady) console.log(`🏆 ALL SKILLS + CONTEXT READY FOR ${targetReport.targetLabel.toUpperCase()}`);
         }
         if (after === 100) console.log('🏆 100% PORTABLE-READY');
       } else {
@@ -318,12 +348,7 @@ async function main() {
       baseProperties.target_ready_count_bucket = bucket(targetReport.summary.ready);
       baseProperties.target_auto_count_bucket = bucket(targetReport.summary.autoFix);
       baseProperties.target_manual_count_bucket = bucket(targetReport.summary.manual);
-      baseProperties.target_complete = Boolean(
-        targetReport.summary.total > 0 &&
-        targetReport.summary.ready === targetReport.summary.total &&
-        targetReport.summary.autoFix === 0 &&
-        targetReport.summary.manual === 0
-      );
+      baseProperties.target_complete = Boolean(targetReport.fullyReady);
     }
 
     if (args.fix && fixPlan) {
