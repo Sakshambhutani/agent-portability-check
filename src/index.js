@@ -3,7 +3,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { scan } from './scan.js';
 import { writeReports } from './report.js';
-import { createShareInfo, normalizeReferralId } from './share.js';
+import { createShareInfo, normalizeReferralId, normalizeTeamCode } from './share.js';
 import { planPortableReadyFix, applyPortableReadyFix } from './fix.js';
 import { analyzeTargetCompatibility, TARGETS } from './compatibility.js';
 import {
@@ -27,6 +27,7 @@ function parseArgs(argv) {
     yes: false,
     target: null,
     runtime: 'local',
+    team: '',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -39,6 +40,7 @@ function parseArgs(argv) {
     else if (a === '--ref' && argv[i + 1]) args.ref = normalizeReferralId(argv[++i]);
     else if (a === '--target' && argv[i + 1]) args.target = argv[++i].toLowerCase();
     else if (a === '--runtime' && argv[i + 1]) args.runtime = argv[++i].toLowerCase();
+    else if (a === '--team' && argv[i + 1]) args.team = normalizeTeamCode(argv[++i]);
     else if (a === '--fix') args.fix = true;
     else if (a === '--yes' || a === '-y') args.yes = true;
     else if (a === '--help' || a === '-h') args.help = true;
@@ -47,7 +49,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --runtime <mode>    local (default) or cloud; cloud currently means Cursor Cloud\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --runtime <mode>    local (default) or cloud; cloud currently means Cursor Cloud\n      --team <code>       Attach an explicitly joined team invite to the result\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
 }
 
 function mark(found) { return found ? '✓' : '✕'; }
@@ -296,7 +298,7 @@ async function main() {
     }
   }
 
-  const shareInfo = createShareInfo(report, { targetCompatibility: targetReport });
+  const shareInfo = createShareInfo(report, { targetCompatibility: targetReport, teamCode: args.team });
 
   let files = null;
 
