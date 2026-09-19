@@ -87,3 +87,33 @@ test('target Claude creates an adapter even before Claude is installed', () => {
     true,
   );
 });
+
+
+test('fixes project-scoped skills into project shared root', () => {
+  const { cwd, home } = fixture();
+  write(path.join(cwd, '.codex/skills/project-review/SKILL.md'), '---\nname: project-review\ndescription: Review project\n---\nReview');
+
+  const before = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const plan = planPortableReadyFix(before, { cwd, home });
+
+  const projectPlan = plan.copyPlans.find(item => item.scope === 'project');
+  assert.ok(projectPlan);
+  assert.equal(projectPlan.targetDir, path.join(cwd, '.agents/skills/project-review'));
+
+  applyPortableReadyFix(plan);
+
+  const after = scan({ cwd, home, installedHarnesses: ['codex'] });
+  assert.equal(after.project.portableReadySkills, 1);
+});
+
+test('target Claude adds project adapter for project skill', () => {
+  const { cwd, home } = fixture();
+  write(path.join(cwd, '.agents/skills/project-review/SKILL.md'), '---\nname: project-review\ndescription: Review project\n---\nReview');
+
+  const before = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const plan = planPortableReadyFix(before, { cwd, home, target: 'claude' });
+
+  const adapter = plan.adapterPlans.find(item => item.scope === 'project');
+  assert.ok(adapter);
+  assert.equal(adapter.linkPath, path.join(cwd, '.claude/skills/project-review'));
+});
