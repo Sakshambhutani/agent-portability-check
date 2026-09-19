@@ -349,8 +349,7 @@ async function main() {
       baseProperties.target_agent = targetReport.target;
       baseProperties.target_ready_count_bucket = bucket(targetReport.summary.ready);
       baseProperties.target_auto_count_bucket = bucket(targetReport.summary.autoFix);
-      baseProperties.target_manual_count_bucket = bucket(targetReport.summary.manual);
-      baseProperties.target_complete = Boolean(targetReport.fullyReady);
+      baseProperties.target_manual_count_bucket = bucket(targetReport.summary.manual);\n      baseProperties.target_context_count_bucket = bucket(targetReport.contextRisks?.length || 0);\n      baseProperties.target_dependency_count_bucket = bucket(targetReport.dependencyRiskCount || 0);\n      baseProperties.target_runtime = targetReport.runtime || 'local';\n      baseProperties.target_complete = Boolean(targetReport.fullyReady);
     }
 
     if (args.fix && fixPlan) {
