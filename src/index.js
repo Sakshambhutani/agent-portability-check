@@ -48,6 +48,20 @@ function findingIcon(level) {
   return '⚠';
 }
 
+function terminalLink(label, url) {
+  if (!process.stdout.isTTY) return url;
+  return `\u001B]8;;${url}\u0007${label}\u001B]8;;\u0007`;
+}
+
+function printShareLink(shareInfo) {
+  if (!shareInfo) return;
+  console.log('\nOpen share page: ' + terminalLink('CLICK HERE', shareInfo.url));
+  console.log(shareInfo.url);
+  if (process.platform === 'darwin') {
+    console.log('Tip: in macOS Terminal, Command-click the URL if a normal click does not open it.');
+  }
+}
+
 function printInstalled(report) {
   const installed = new Map(report.installedHarnesses.map(h => [h.key, h]));
   console.log('\nAgent tools detected');
@@ -137,10 +151,10 @@ async function main() {
     if (!args.json) {
       console.log('\nShare card:  ' + files.svgPath);
       console.log('Full report: ' + files.htmlPath);
-      if (shareInfo) console.log('Share link:   ' + shareInfo.url);
+      printShareLink(shareInfo);
     }
   } else if (shareInfo && !args.json) {
-    console.log('\nShare link:   ' + shareInfo.url);
+    printShareLink(shareInfo);
   }
 
   const allowPrompt = !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
