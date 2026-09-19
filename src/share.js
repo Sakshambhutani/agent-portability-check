@@ -8,6 +8,11 @@ export function normalizeReferralId(value) {
   return value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
 }
 
+export function normalizeTeamCode(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+}
+
 export function createReferralId() {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 }
@@ -16,6 +21,7 @@ export function createShareInfo(report, {
   publicUrl = process.env.APC_PUBLIC_URL || DEFAULT_PUBLIC_URL,
   referralId = createReferralId(),
   targetCompatibility = null,
+  teamCode = '',
 } = {}) {
   if (!publicUrl) return null;
 
@@ -38,6 +44,8 @@ export function createShareInfo(report, {
   url.searchParams.set('shared', String(report.global.sharedFormatSkills));
   url.searchParams.set('drift', String(report.global.drift.length));
   url.searchParams.set('agents', report.installedHarnesses.map(h => h.key).join(','));
+  const cleanTeam = normalizeTeamCode(teamCode);
+  if (cleanTeam) url.searchParams.set('team', cleanTeam);
 
   if (targetCompatibility) {
     url.searchParams.set('target', targetCompatibility.target);
