@@ -7,27 +7,31 @@ const SKILL_ROOTS = [
   { owner: 'portable', scope: 'project', rel: '.agents/skills' },
   { owner: 'claude', scope: 'project', rel: '.claude/skills' },
   { owner: 'cursor', scope: 'project', rel: '.cursor/skills' },
-  { owner: 'codex', scope: 'project', rel: '.codex/skills', note: 'compatibility location' },
+  { owner: 'codex', scope: 'project', rel: '.codex/skills' },
 ];
 
 const HOME_SKILL_ROOTS = [
   { owner: 'portable', scope: 'user', rel: '.agents/skills' },
   { owner: 'claude', scope: 'user', rel: '.claude/skills' },
   { owner: 'cursor', scope: 'user', rel: '.cursor/skills' },
-  { owner: 'codex', scope: 'user', rel: '.codex/skills', note: 'compatibility location' },
+  { owner: 'codex', scope: 'user', rel: '.codex/skills' },
 ];
 
-const INSTRUCTION_FILES = [
-  { owner: 'claude', scope: 'project', rel: 'CLAUDE.md' },
-  { owner: 'codex', scope: 'project', rel: 'AGENTS.md' },
-  { owner: 'cursor', scope: 'project', rel: 'AGENTS.md' },
-  { owner: 'cursor', scope: 'project', rel: 'CLAUDE.md' },
+const PROJECT_INSTRUCTIONS = [
+  { owner: 'shared', scope: 'project', rel: 'AGENTS.md', compatibleWith: ['codex', 'cursor'] },
+  { owner: 'claude', scope: 'project', rel: 'CLAUDE.md', compatibleWith: ['claude'] },
 ];
 
-const HOME_INSTRUCTION_FILES = [
-  { owner: 'claude', scope: 'user', rel: '.claude/CLAUDE.md' },
-  { owner: 'codex', scope: 'user', rel: '.codex/AGENTS.md' },
+const HOME_INSTRUCTIONS = [
+  { owner: 'claude', scope: 'user', rel: '.claude/CLAUDE.md', compatibleWith: ['claude'] },
+  { owner: 'codex', scope: 'user', rel: '.codex/AGENTS.md', compatibleWith: ['codex'] },
 ];
+
+const HARNESS_DIRS = {
+  claude: ['.claude'],
+  codex: ['.codex'],
+  cursor: ['.cursor'],
+};
 
 function exists(file) {
   try { return fs.existsSync(file); } catch { return false; }
@@ -102,6 +106,7 @@ function gatherInstructions(base, specs, cwd, home) {
     out.push({
       owner: spec.owner,
       scope: spec.scope,
+      compatibleWith: spec.compatibleWith,
       path: relativeDisplay(file, cwd, home),
       hash: hashText(content),
       bytes: Buffer.byteLength(content),
@@ -127,72 +132,146 @@ function gatherCursorRules(cwd, home) {
   return rules;
 }
 
-function analyze(skills, instructions, cursorRules) {
+function detectHarnesses(cwd, home, skills, instructions, cursorRules) {
+  const evidence = {
+    claude: [],
+    codex: [],
+    cursor: [],
+  };
+
+  for (const harness of Object.keys(HARNESS_DIRS)) {
+    for (const rel of HARNESS_DIRS[harness]) {
+      if (exists(path.join(cwd, rel))) evidence[harness].push(`./${rel}`);
+      if (exists(path.join(home, rel))) evidence[harness].push(`~/${rel}`);
+    }
+  }
+
+  for (const skill of skills) {
+    if (skill.owner in evidence) evidence[skill.owner].push(skill.path);
+  }
+  for (const instruction of instructions) {
+    if (instruction.owner in evidence) evidence[instruction.owner].push(instruction.path);
+  }
+  for (const rule of cursorRules) evidence.cursor.push(rule.path);
+
+  const labels = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor' };
+  const activeHarnesses = Object.entries(evidence)
+    .filter(([, items]) => items.length > 0)
+    .map(([key]) => labels[key]);
+
+  return { activeHarnesses, harnessEvidence: evidence };
+}
+
+function analyzeSkillPortability(skills) {
   const byName = new Map();
   for (const skill of skills) {
     if (!byName.has(skill.name)) byName.set(skill.name, []);
     byName.get(skill.name).push(skill);
   }
 
+  const statuses = [];
   const duplicates = [];
   const drift = [];
+
   for (const [name, copies] of byName) {
     if (copies.length > 1) duplicates.push({ name, copies });
+
     const hashes = new Set(copies.map(c => c.hash));
     if (hashes.size > 1) drift.push({ name, copies });
+
+    const owners = new Set(copies.filter(c => c.owner !== 'portable').map(c => c.owner));
+    const hasPortableRoot = copies.some(c => c.owner === 'portable');
+    const identicalAcrossHarnesses = hashes.size === 1 && owners.size >= 2;
+
+    let portability = 0;
+    let reason = 'only one harness-specific copy';
+    if (hasPortableRoot) {
+      portability = 1;
+      reason = 'stored in a shared .agents/skills location';
+    } else if (identicalAcrossHarnesses && owners.size >= 3) {
+      portability = 1;
+      reason = 'identical copies exist across all three supported harnesses';
+    } else if (identicalAcrossHarnesses && owners.size === 2) {
+      portability = 0.5;
+      reason = 'identical copies exist across two harnesses';
+    } else if (hashes.size > 1) {
+      portability = 0;
+      reason = 'same-name copies have drifted';
+    }
+
+    statuses.push({ name, copies, portability, reason });
   }
 
-  const portableSkills = [...byName.values()].filter(copies => copies.some(c => c.owner === 'portable')).length;
-  const totalSkills = byName.size;
-  const harnessSpecificSkills = [...byName.entries()]
-    .filter(([, copies]) => !copies.some(c => c.owner === 'portable') && new Set(copies.map(c => c.owner)).size === 1)
-    .map(([name, copies]) => ({ name, owner: copies[0].owner }));
+  const totalSkills = statuses.length;
+  const score = totalSkills === 0
+    ? null
+    : Math.round(100 * statuses.reduce((sum, s) => sum + s.portability, 0) / totalSkills);
 
-  const hasClaude = instructions.some(i => i.owner === 'claude') || skills.some(s => s.owner === 'claude');
-  const hasCodex = instructions.some(i => i.owner === 'codex') || skills.some(s => s.owner === 'portable' || s.owner === 'codex');
-  const hasCursor = instructions.some(i => i.owner === 'cursor') || skills.some(s => ['cursor','portable','claude','codex'].includes(s.owner)) || cursorRules.length > 0;
-  const activeHarnesses = [hasClaude && 'Claude', hasCodex && 'Codex', hasCursor && 'Cursor'].filter(Boolean);
+  const crossHarnessSkills = statuses.filter(s => s.portability > 0).length;
+  const fullyPortableSkills = statuses.filter(s => s.portability === 1).length;
+  const harnessSpecificSkills = statuses
+    .filter(s => s.portability === 0 && s.copies.every(c => c.owner !== 'portable'))
+    .map(s => ({ name: s.name, owner: s.copies[0]?.owner || 'unknown', reason: s.reason }));
 
-  let score = 100;
-  if (totalSkills > 0) score -= Math.round(30 * (harnessSpecificSkills.length / totalSkills));
-  score -= Math.min(20, drift.length * 7);
-  score -= Math.min(15, Math.max(0, duplicates.length - drift.length) * 3);
-  if (cursorRules.length > 0) score -= Math.min(15, cursorRules.length * 3);
-  const projectInstructionKinds = new Set(instructions.filter(i => i.scope === 'project').map(i => path.basename(i.path)));
-  if (projectInstructionKinds.size === 1 && activeHarnesses.length >= 2) score -= 10;
-  if (activeHarnesses.length <= 1) score -= 10;
-  score = Math.max(0, Math.min(100, score));
+  return {
+    score,
+    totalSkills,
+    crossHarnessSkills,
+    fullyPortableSkills,
+    skillPortability: statuses,
+    duplicates,
+    drift,
+    harnessSpecificSkills,
+  };
+}
 
+function buildFindings(skillAnalysis, cursorRules, activeHarnesses) {
   const findings = [];
-  if (drift.length) findings.push({ level: 'high', text: `${drift.length} skill${drift.length === 1 ? '' : 's'} have different copies with the same name.` });
-  if (harnessSpecificSkills.length) findings.push({ level: 'medium', text: `${harnessSpecificSkills.length} skill${harnessSpecificSkills.length === 1 ? '' : 's'} live only in one harness-specific location.` });
-  if (cursorRules.length) findings.push({ level: 'medium', text: `${cursorRules.length} Cursor rule${cursorRules.length === 1 ? '' : 's'} may not travel to Claude or Codex as-is.` });
-  if (duplicates.length && !drift.length) findings.push({ level: 'low', text: `${duplicates.length} skill${duplicates.length === 1 ? '' : 's'} are duplicated across locations.` });
-  if (!findings.length) findings.push({ level: 'good', text: 'No obvious portability problems found in the files this V0 understands.' });
+  const { totalSkills, crossHarnessSkills, harnessSpecificSkills, drift } = skillAnalysis;
 
-  return { score, totalSkills, portableSkills, duplicates, drift, harnessSpecificSkills, cursorRules, activeHarnesses, findings };
+  if (totalSkills > 0 && crossHarnessSkills === 0) {
+    findings.push({ level: 'high', text: `None of your ${totalSkills} skills are currently reusable across multiple harnesses.` });
+  } else if (harnessSpecificSkills.length) {
+    findings.push({ level: 'medium', text: `${harnessSpecificSkills.length} skill${harnessSpecificSkills.length === 1 ? '' : 's'} still live only in one harness-specific location.` });
+  }
+  if (drift.length) findings.push({ level: 'high', text: `${drift.length} skill${drift.length === 1 ? '' : 's'} have same-name copies with different contents.` });
+  if (cursorRules.length) findings.push({ level: 'medium', text: `${cursorRules.length} Cursor rule${cursorRules.length === 1 ? '' : 's'} may need an equivalent instruction when you switch harnesses.` });
+  if (activeHarnesses.length === 1) findings.push({ level: 'info', text: `Only ${activeHarnesses[0]} has a harness-specific footprint in the locations checked.` });
+  if (totalSkills === 0) findings.push({ level: 'info', text: 'No skills were found in the locations this V0.2 understands, so no portability score was calculated.' });
+  if (!findings.length) findings.push({ level: 'good', text: 'No obvious skill-portability problems found in the locations this V0.2 understands.' });
+
+  return findings;
 }
 
 export function scan({ cwd = process.cwd(), home = os.homedir() } = {}) {
   cwd = path.resolve(cwd);
   home = path.resolve(home);
+
   const skills = [
     ...gatherSkills(cwd, SKILL_ROOTS, cwd, home),
     ...gatherSkills(home, HOME_SKILL_ROOTS, cwd, home),
   ];
   const instructions = [
-    ...gatherInstructions(cwd, INSTRUCTION_FILES, cwd, home),
-    ...gatherInstructions(home, HOME_INSTRUCTION_FILES, cwd, home),
+    ...gatherInstructions(cwd, PROJECT_INSTRUCTIONS, cwd, home),
+    ...gatherInstructions(home, HOME_INSTRUCTIONS, cwd, home),
   ];
   const cursorRules = gatherCursorRules(cwd, home);
-  const analysis = analyze(skills, instructions, cursorRules);
+  const skillAnalysis = analyzeSkillPortability(skills);
+  const { activeHarnesses, harnessEvidence } = detectHarnesses(cwd, home, skills, instructions, cursorRules);
+  const findings = buildFindings(skillAnalysis, cursorRules, activeHarnesses);
+
   return {
-    version: 1,
+    version: 2,
     generatedAt: new Date().toISOString(),
     cwd,
     privacy: 'local-only',
+    scoreDefinition: 'Average skill portability: shared location = 100%, identical copies in two harnesses = 50%, one harness or drifted copies = 0%.',
     skills,
     instructions,
-    ...analysis,
+    cursorRules,
+    activeHarnesses,
+    harnessEvidence,
+    findings,
+    ...skillAnalysis,
   };
 }
