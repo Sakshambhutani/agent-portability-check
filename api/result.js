@@ -44,6 +44,9 @@ export default function handler(req, res) {
   const targetReady = target ? intParam(req.query.targetReady, 0, targetTotal || 999, 0) : 0;
   const targetAuto = target ? intParam(req.query.targetAuto, 0, 999, 0) : 0;
   const targetManual = target ? intParam(req.query.targetManual, 0, 999, 0) : 0;
+  const targetContext = target ? intParam(req.query.targetContext, 0, 999, 0) : 0;
+  const targetDeps = target ? intParam(req.query.targetDeps, 0, 999, 0) : 0;
+  const runtime = req.query.runtime === 'cloud' ? 'cloud' : 'local';
 
   const singleAgent = score === null;
   const readiness = total > 0 ? Math.round(100 * ready / total) : null;
@@ -53,7 +56,10 @@ export default function handler(req, res) {
     targetTotal > 0 &&
     targetReady === targetTotal &&
     targetAuto === 0 &&
-    targetManual === 0
+    targetManual === 0 &&
+    targetContext === 0 &&
+    targetDeps === 0 &&
+    req.query.targetComplete === '1'
   );
   const shareAchievement = targetComplete || portableReady;
 
@@ -64,11 +70,13 @@ export default function handler(req, res) {
   const checkParams = new URLSearchParams();
   if (ref) checkParams.set('ref', ref);
   if (target) checkParams.set('target', target);
+  if (runtime === 'cloud') checkParams.set('runtime', 'cloud');
   const checkUrl = `${origin}/?${checkParams.toString()}`;
 
   const fixCommand = [
     'npx github:Sakshambhutani/agent-portability-check',
     target ? `--target ${target}` : '',
+    runtime === 'cloud' ? '--runtime cloud' : '',
     '--fix',
     ref ? `--ref ${ref}` : '',
   ].filter(Boolean).join(' ');
@@ -86,11 +94,11 @@ export default function handler(req, res) {
     : portableReady
       ? `${ready}/${total} global skills are in shared format with no drift.`
       : target
-        ? `${targetAuto} can be fixed automatically; ${targetManual} need manual attention before moving to ${targetLabel}.`
+        ? `${targetAuto} auto-fix, ${targetManual} manual, ${targetDeps} dependency blockers, and ${targetContext} context gaps before moving to ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}.`
         : `${total} global skills found in ${agentLabel}. ${ready} are currently portable-ready.`;
 
   const og = new URL('/api/og', origin);
-  og.searchParams.set('v', '5');
+  og.searchParams.set('v', '6');
   og.searchParams.set('score', score === null ? 'na' : String(score));
   og.searchParams.set('total', String(total));
   og.searchParams.set('portable', String(portable));
@@ -103,12 +111,16 @@ export default function handler(req, res) {
     og.searchParams.set('targetTotal', String(targetTotal));
     og.searchParams.set('targetAuto', String(targetAuto));
     og.searchParams.set('targetManual', String(targetManual));
+    og.searchParams.set('targetContext', String(targetContext));
+    og.searchParams.set('targetDeps', String(targetDeps));
+    og.searchParams.set('runtime', runtime);
+    og.searchParams.set('targetComplete', targetComplete ? '1' : '0');
   }
 
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
 
   const shareSentence = targetComplete
-    ? `I got all ${targetTotal} of my AI skills ready for ${targetLabel}.`
+    ? `I got all ${targetTotal} of my AI skills, dependencies, and context ready for ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}.`
     : `I made my AI setup 100% portable-ready. ${ready}/${total} skills are now in shared format.`;
 
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareSentence + ' Check yours:')}&url=${encodeURIComponent(canonical)}`;
@@ -189,6 +201,8 @@ export default function handler(req, res) {
       ${target ? `
         <span class="pill">${targetAuto} auto-fix</span>
         <span class="pill">${targetManual} manual</span>
+        <span class="pill">${targetDeps} dependency blockers</span>
+        <span class="pill">${targetContext} context gaps</span>
       ` : `
         <span class="pill">${ready} portable-ready</span>
         <span class="pill">${drift} drifted</span>
