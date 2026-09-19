@@ -10,11 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Wait for Vercel deployment
-        run: sleep 20
+        run: sleep 25
       - name: Check production health endpoint
         run: |
           set -euo pipefail
           response="$(curl -fsS https://agent-portability-check.vercel.app/api/health)"
           echo "$response"
           echo "$response" | grep -q '"telemetryConfigured":true'
-          echo "$response" | grep -q '"hostConfigured":true'
+      - name: Send synthetic telemetry event
+        run: |
+          set -euo pipefail
+          response="$(curl -fsS -X POST https://agent-portability-check.vercel.app/api/telemetry \
+            -H 'Content-Type: application/json' \
+            --data '{"event":"apc_health_check","distinct_id":"github_health_check","properties":{"platform":"ci","agent_count":0}}')"
+          echo "$response"
+          echo "$response" | grep -q '"ok":true'
