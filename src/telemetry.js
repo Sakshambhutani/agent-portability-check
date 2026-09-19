@@ -9,7 +9,7 @@ const POSTHOG_HOST = process.env.APC_POSTHOG_HOST || 'https://us.i.posthog.com';
 const POSTHOG_TOKEN = process.env.APC_POSTHOG_TOKEN || '';
 const TELEMETRY_ENDPOINT = process.env.APC_TELEMETRY_ENDPOINT || `${DEFAULT_PUBLIC_URL}/api/telemetry`;
 const CONSENT_VERSION = 1;
-const APP_VERSION = '0.4.1';
+const APP_VERSION = '0.5.1';
 
 function configPath(home = os.homedir()) {
   return path.join(home, '.agent-portability', 'config.json');
@@ -109,6 +109,7 @@ export function buildScanTelemetry(report) {
     global_skill_count_bucket: countBucket(report.global.totalSkills),
     project_skill_count_bucket: countBucket(report.project.totalSkills),
     global_score_bucket: scoreBucket(report.global.score),
+    portable_ready_bucket: scoreBucket(report.global.portableReadyPercent),
     global_drift_count_bucket: countBucket(report.global.drift.length),
     project_drift_count_bucket: countBucket(report.project.drift.length),
     has_cross_agent_score: report.global.score !== null,
