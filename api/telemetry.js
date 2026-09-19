@@ -1,6 +1,7 @@
 const ALLOWED_EVENTS = new Set([
   'apc_landing_viewed',
   'apc_command_copied',
+  'apc_target_selected',
   'apc_referral_page_opened',
   'apc_check_yours_clicked',
   'apc_linkedin_share_clicked',
@@ -36,6 +37,11 @@ const ALLOWED_PROPERTIES = new Set([
   'has_cross_agent_score',
   'referral_id',
   'share_surface',
+  'target_complete',
+  'target_manual_count_bucket',
+  'target_auto_count_bucket',
+  'target_ready_count_bucket',
+  'target_agent',
   'source',
 ]);
 
