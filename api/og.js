@@ -39,6 +39,9 @@ export default async function handler(req, res) {
   const targetReady = target ? intParam(req.query?.targetReady, 0, targetTotal || 999, 0) : 0;
   const targetAuto = target ? intParam(req.query?.targetAuto, 0, 999, 0) : 0;
   const targetManual = target ? intParam(req.query?.targetManual, 0, 999, 0) : 0;
+  const targetContext = target ? intParam(req.query?.targetContext, 0, 999, 0) : 0;
+  const targetDeps = target ? intParam(req.query?.targetDeps, 0, 999, 0) : 0;
+  const runtime = req.query?.runtime === 'cloud' ? 'cloud' : 'local';
 
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const readiness = total > 0 ? Math.round(100 * ready / total) : null;
@@ -48,7 +51,10 @@ export default async function handler(req, res) {
     targetTotal > 0 &&
     targetReady === targetTotal &&
     targetAuto === 0 &&
-    targetManual === 0
+    targetManual === 0 &&
+    targetContext === 0 &&
+    targetDeps === 0 &&
+    req.query?.targetComplete === '1'
   );
 
   const hero = target
@@ -58,17 +64,17 @@ export default async function handler(req, res) {
       : `${ready}/${total}`;
 
   const heroLabel = target
-    ? `READY FOR ${targetLabel.toUpperCase()}`
+    ? `READY FOR ${(runtime === 'cloud' ? targetLabel + ' CLOUD' : targetLabel).toUpperCase()}`
     : portableReady
       ? 'PORTABLE-READY'
       : 'SKILLS PORTABLE-READY';
 
-  const title = target ? `Ready for ${targetLabel}?` : 'How portable is my AI setup?';
+  const title = target ? `Ready for ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}?` : 'How portable is my AI setup?';
 
   const sub = target
     ? targetComplete
-      ? `All skills are discoverable and structurally ready for ${targetLabel}`
-      : `${targetAuto} auto-fix · ${targetManual} manual before moving to ${targetLabel}`
+      ? `Skills, dependencies, and context are ready for ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}`
+      : `${targetAuto} auto-fix · ${targetManual} manual · ${targetDeps} deps · ${targetContext} context gaps`
     : portableReady
       ? `${ready}/${total} skills are in shared format with no drift`
       : `${total} global skills found in ${agentLabel}`;
