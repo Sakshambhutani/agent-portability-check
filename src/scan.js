@@ -185,14 +185,80 @@ function walkSkillFiles(root) {
   return out;
 }
 
-function skillName(file) {
-  const body = readText(file) || '';
-  const frontmatter = body.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (frontmatter) {
-    const m = frontmatter[1].match(/^name:\s*["']?([^\n"']+)["']?\s*$/m);
-    if (m) return m[1].trim();
+function parseSkillFrontmatter(content) {
+  const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!match) return { hasFrontmatter: false, name: '', description: '' };
+
+  const yaml = match[1];
+  const nameMatch = yaml.match(/^name:\s*["']?([^\n"']+)["']?\s*$/m);
+  const descriptionMatch = yaml.match(/^description:\s*(.+)$/m);
+
+  return {
+    hasFrontmatter: true,
+    name: nameMatch?.[1]?.trim() || '',
+    description: descriptionMatch?.[1]?.trim()?.replace(/^["']|["']$/g, '') || '',
+  };
+}
+
+function referencedLocalPaths(content) {
+  const found = new Set();
+
+  for (const match of content.matchAll(/\]\(([^)]+)\)/g)) {
+    const value = match[1].trim().split(/\s+/)[0];
+    if (value) found.add(value);
   }
-  return path.basename(path.dirname(file));
+
+  for (const match of content.matchAll(/\b(?:scripts|references|assets)\/[A-Za-z0-9._/-]+/g)) {
+    found.add(match[0]);
+  }
+
+  return [...found].filter(value => {
+    if (!value || value.startsWith('#')) return false;
+    if (/^(?:https?:|mailto:|data:)/i.test(value)) return false;
+    if (value.includes('*') || value.includes('<') || value.includes('>')) return false;
+    return true;
+  });
+}
+
+function inspectSkillPackage(file, content) {
+  const skillDir = path.dirname(file);
+  const folderName = path.basename(skillDir);
+  const frontmatter = parseSkillFrontmatter(content);
+  const missingReferences = [];
+
+  for (const ref of referencedLocalPaths(content)) {
+    const cleanRef = ref.replace(/[),.;:]+$/, '');
+    const resolved = path.resolve(skillDir, cleanRef);
+    const relative = path.relative(skillDir, resolved);
+
+    if (relative.startsWith('..') || path.isAbsolute(relative)) continue;
+    if (!exists(resolved)) missingReferences.push(cleanRef);
+  }
+
+  const validName = Boolean(frontmatter.name && /^[a-z0-9-]+$/.test(frontmatter.name));
+  const folderMatchesName = !frontmatter.name || frontmatter.name === folderName;
+
+  return {
+    frontmatterName: frontmatter.name,
+    hasFrontmatter: frontmatter.hasFrontmatter,
+    hasDescription: Boolean(frontmatter.description),
+    folderName,
+    folderMatchesName,
+    missingReferences,
+    packageValid: Boolean(
+      frontmatter.hasFrontmatter &&
+      validName &&
+      frontmatter.description &&
+      folderMatchesName &&
+      missingReferences.length === 0
+    ),
+  };
+}
+
+function skillName(file, content = null) {
+  const body = content ?? readText(file) ?? '';
+  const frontmatter = parseSkillFrontmatter(body);
+  return frontmatter.name || path.basename(path.dirname(file));
 }
 
 function displayPath(file, cwd, home) {
@@ -207,13 +273,15 @@ function gatherSkills(base, scope, cwd, home) {
     const root = path.join(base, spec.rel);
     for (const file of walkSkillFiles(root)) {
       const content = readText(file) || '';
+      const inspection = inspectSkillPackage(file, content);
       skills.push({
-        name: skillName(file),
+        name: skillName(file, content),
         owner: spec.owner,
         scope,
         path: displayPath(file, cwd, home),
         hash: hashText(content),
         bytes: Buffer.byteLength(content),
+        ...inspection,
       });
     }
   }
@@ -296,24 +364,22 @@ function analyzeScope(skills, installedKeys) {
     if (hasDrift) drift.push({ name, copies });
 
     const availableToInstalled = (key) => {
-      // Current Codex user skills live in ~/.agents/skills.
       if (key === 'codex') {
-        return hasPortableCopy;
+        return copies.some(copy => copy.owner === 'portable' && copy.packageValid);
       }
 
-      // Cursor supports the shared Agent Skills root and compatibility locations
-      // for Cursor, Claude, and Codex skills.
       if (key === 'cursor') {
-        return hasPortableCopy || nativeOwners.size > 0;
+        return copies.some(copy =>
+          ['portable', 'cursor', 'claude', 'codex'].includes(copy.owner) &&
+          copy.packageValid
+        );
       }
 
-      // Claude Code discovers ~/.claude/skills; a shared canonical skill needs a
-      // Claude-side copy or adapter (the fixer creates an individual symlink).
       if (key === 'claude') {
-        return nativeOwners.has('claude');
+        return copies.some(copy => copy.owner === 'claude' && copy.packageValid);
       }
 
-      return nativeOwners.has(key);
+      return copies.some(copy => copy.owner === key && copy.packageValid);
     };
 
     let portableAcrossInstalled = false;
@@ -343,11 +409,16 @@ function analyzeScope(skills, installedKeys) {
       reason = 'Same-name copies differ.';
     }
 
+    const validPortableCopy = copies.some(copy =>
+      copy.owner === 'portable' && copy.packageValid
+    );
+
     statuses.push({
       name,
       copies,
       portableAcrossInstalled,
       sharedFormat: hasPortableCopy && !hasDrift,
+      portableReady: validPortableCopy && !hasDrift,
       drifted: hasDrift,
       nativeOwners: [...nativeOwners],
       reason,
@@ -357,8 +428,9 @@ function analyzeScope(skills, installedKeys) {
   const totalSkills = statuses.length;
   const portableAcrossInstalled = statuses.filter(s => s.portableAcrossInstalled).length;
   const sharedFormatSkills = statuses.filter(s => s.sharedFormat).length;
+  const portableReadySkills = statuses.filter(s => s.portableReady).length;
   const portableReadyPercent = totalSkills > 0
-    ? Math.round(100 * sharedFormatSkills / totalSkills)
+    ? Math.round(100 * portableReadySkills / totalSkills)
     : null;
   const score = installedKeys.length >= 2 && totalSkills > 0
     ? Math.round(100 * portableAcrossInstalled / totalSkills)
@@ -378,6 +450,7 @@ function analyzeScope(skills, installedKeys) {
     totalSkills,
     portableAcrossInstalled,
     sharedFormatSkills,
+    portableReadySkills,
     onlyByHarness,
     duplicates,
     drift,
