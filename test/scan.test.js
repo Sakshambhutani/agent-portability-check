@@ -229,3 +229,93 @@ test('scan rejects unsupported scope values', () => {
     /Unsupported scan scope/,
   );
 });
+
+
+test('discovers Claude skills from installed plugin records', () => {
+  const { cwd, home } = fixture();
+  const pluginRoot = path.join(home, '.claude/plugins/cache/community/reviewer/1.2.3');
+  write(path.join(pluginRoot, 'skills/deep-review/SKILL.md'), validSkill('deep-review'));
+  write(
+    path.join(home, '.claude/plugins/installed_plugins.json'),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        'reviewer@community': [{
+          scope: 'user',
+          installPath: pluginRoot,
+          version: '1.2.3',
+        }],
+      },
+    }),
+  );
+
+  const r = scan({ cwd, home, installedHarnesses: ['claude', 'codex'] });
+  const found = r.global.skills.find(item => item.name === 'deep-review');
+
+  assert.ok(found);
+  assert.equal(found.sourceType, 'plugin');
+  assert.equal(found.pluginHost, 'claude');
+  assert.equal(found.pluginId, 'reviewer@community');
+  assert.equal(r.global.totalSkills, 1);
+  assert.equal(r.global.portableAcrossInstalled, 0);
+});
+
+test('discovers enabled Codex plugin skills from the active cache', () => {
+  const { cwd, home } = fixture();
+  const pluginRoot = path.join(home, '.codex/plugins/cache/team/reviewer/1.0.0');
+  write(path.join(pluginRoot, 'skills/deep-review/SKILL.md'), validSkill('deep-review'));
+  write(
+    path.join(home, '.codex/config.toml'),
+    '[plugins."reviewer@team"]\nenabled = true\n',
+  );
+
+  const r = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const found = r.global.skills.find(item => item.name === 'deep-review');
+
+  assert.ok(found);
+  assert.equal(found.sourceType, 'plugin');
+  assert.equal(found.pluginHost, 'codex');
+  assert.equal(found.pluginId, 'reviewer@team');
+});
+
+test('reference anchors and plugin URLs do not become missing files', () => {
+  const { cwd, home } = fixture();
+  write(
+    path.join(home, '.agents/skills/review/SKILL.md'),
+    validSkill('review', 'Read [guide](references/guide.md#usage) and [plugin docs](plugin://reviewer/help).'),
+  );
+  write(path.join(home, '.agents/skills/review/references/guide.md'), '# Guide');
+
+  const r = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const copy = r.global.skills.find(item => item.name === 'review');
+
+  assert.deepEqual(copy.missingReferences, []);
+  assert.deepEqual(copy.externalReferences, []);
+  assert.equal(copy.packageValid, true);
+});
+
+test('plugin-root companion files are discovered but marked external to the skill directory', () => {
+  const { cwd, home } = fixture();
+  const pluginRoot = path.join(home, '.claude/plugins/cache/community/reviewer/1.2.3');
+  write(
+    path.join(pluginRoot, 'skills/deep-review/SKILL.md'),
+    validSkill('deep-review', 'Run ${CLAUDE_PLUGIN_ROOT}/scripts/check.sh'),
+  );
+  write(path.join(pluginRoot, 'scripts/check.sh'), '#!/bin/sh\nexit 0\n');
+  write(
+    path.join(home, '.claude/plugins/installed_plugins.json'),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        'reviewer@community': [{ scope: 'user', installPath: pluginRoot }],
+      },
+    }),
+  );
+
+  const r = scan({ cwd, home, installedHarnesses: ['claude'] });
+  const copy = r.global.skills.find(item => item.name === 'deep-review');
+
+  assert.equal(copy.packageValid, true);
+  assert.deepEqual(copy.missingReferences, []);
+  assert.deepEqual(copy.externalReferences, ['${CLAUDE_PLUGIN_ROOT}/scripts/check.sh']);
+});
