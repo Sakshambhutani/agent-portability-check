@@ -328,19 +328,19 @@ Result link will be included when you copy.`;
       <div class="cta">
         <div>
           <h2>Challenge a teammate</h2>
-          <p class="muted">Their scan keeps skill contents on their machine.</p>
+          <p class="muted">See whether their setup can reach the same portable-ready result. Their scan stays local.</p>
         </div>
-        <a id="check" class="primary" href="${esc(checkUrl)}">Check yours →</a>
+        <a id="check" class="primary" href="${esc(checkUrl)}">Challenge teammate →</a>
       </div>
     ` : `
       <div class="insight">
-        <strong>This is the before state.</strong><br>
-        The CLI can safely fix location/discovery issues. Conflicts and missing files stay manual.
+        <strong>This is your private diagnostic.</strong><br>
+        The CLI can safely fix location/discovery issues. Sharing actions unlock after you reach a portable-ready or target-ready achievement.
       </div>
       <div class="copybox" id="fixcommand">${esc(fixCommand)}</div>
       <div class="actions">
         <button id="copyFix" class="primary">Copy fix command</button>
-        <button id="copy" class="secondary">Copy result link</button>
+        <button id="copy" class="secondary">Copy diagnostic link</button>
       </div>
       <p class="muted" id="fixhint" style="margin-top:12px">Paste the copied command into Terminal. The CLI previews changes before applying them.</p>
     `}
