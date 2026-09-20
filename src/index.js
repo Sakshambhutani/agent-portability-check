@@ -31,6 +31,7 @@ function parseArgs(argv) {
     output: '.agent-portability',
     json: false,
     write: true,
+    publish: true,
     analytics: null,
     ref: '',
     fix: false,
@@ -52,6 +53,7 @@ function parseArgs(argv) {
     else if ((a === '--output' || a === '-o') && argv[i + 1]) args.output = argv[++i];
     else if (a === '--json') args.json = true;
     else if (a === '--no-write') args.write = false;
+    else if (a === '--no-publish') args.publish = false;
     else if (a === '--analytics' && argv[i + 1]) args.analytics = argv[++i].toLowerCase();
     else if (a === '--ref' && argv[i + 1]) { args.ref = normalizeReferralId(argv[++i]); args.refProvided = true; }
     else if (a === '--target' && argv[i + 1]) { args.target = argv[++i].toLowerCase(); args.targetProvided = true; }
@@ -458,7 +460,9 @@ async function main() {
     }
   }
 
-  const shareInfo = await publishShareResult(report, { targetCompatibility: targetReport, teamCode: args.team });
+  const shareInfo = args.publish
+    ? await publishShareResult(report, { targetCompatibility: targetReport, teamCode: args.team })
+    : null;
 
   let files = null;
 
