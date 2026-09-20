@@ -108,8 +108,16 @@ Mode                 migration simulation (target not installed)
 
 ## Fix safe issues
 
+For one target:
+
 ```bash
 npx github:Sakshambhutani/agent-portability-check --target claude --fix
+```
+
+For every supported harness surface in one pass:
+
+```bash
+npx github:Sakshambhutani/agent-portability-check --all --fix
 ```
 
 The CLI previews the exact changes and asks before applying anything.
