@@ -1,10 +1,12 @@
 # Agent Portability Check
 
-**Switching AI agents? See which skills, dependencies, and context will carry over, what can be fixed automatically, and what needs manual attention.**
+**Using more than one AI coding environment? Check whether your skills, instructions, MCP tools, and dependencies work across all of them.**
+
+Agent Portability Check covers cross-harness compatibility and runtime changes. Use it when you are switching between Claude Code, Codex, and Cursor, checking local versus cloud behavior, or setting up the same agent workflow on another machine.
 
 Public site: https://agent-portability-check.vercel.app
 
-## 10-second migration check
+## 10-second compatibility check
 
 ```bash
 npx github:Sakshambhutani/agent-portability-check --target claude

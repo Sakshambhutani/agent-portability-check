@@ -1,58 +1,245 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Agent Portability Check</title>
-  <meta name="description" content="Switching between Codex, Claude Code, or Cursor? See what will work, what can be fixed automatically, and what needs manual attention.">
+  <title>Agent Portability Check — Test your AI setup everywhere</title>
+  <meta name="description" content="Check whether your skills, instructions, MCP tools, and dependencies work across Claude Code, Codex, Cursor, and local or cloud runtimes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#090c0f;color:#f7f8fa}
-    *{box-sizing:border-box}body{margin:0}.shell{width:min(1060px,calc(100% - 40px));margin:auto}
-    header{display:flex;justify-content:space-between;align-items:center;padding:24px 0;border-bottom:1px solid #1f252c}
-    header a{color:#b9c2cc;text-decoration:none}.brand{font-weight:800}
-    main{padding:72px 0 100px}.eyebrow{font-family:ui-monospace,monospace;color:#7f8b98;letter-spacing:.09em;font-size:13px}
-    h1{font-size:clamp(48px,8vw,88px);line-height:.94;letter-spacing:-.055em;max-width:980px;margin:20px 0}
-    .lead{font-size:22px;color:#aeb8c3;max-width:780px;line-height:1.5;margin-bottom:30px}
-    .targets{display:flex;gap:10px;flex-wrap:wrap;margin:26px 0}
-    .target{border:1px solid #303945;background:#14191f;color:#d9e0e7;border-radius:999px;padding:10px 15px;cursor:pointer;font-weight:700}
-    .target.active{background:#fff;color:#0b0d10;border-color:#fff}
-    .ref{margin:22px 0;padding:15px 17px;border-left:3px solid #68d391;background:#101820;border-radius:9px;display:none}
-    .terminal{margin:26px 0 12px;background:#11161b;border:1px solid #2a313a;border-radius:18px;padding:20px;display:flex;gap:16px;align-items:center;justify-content:space-between}
-    code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;color:#f5f7fa}
-    .btn{border:0;border-radius:11px;padding:12px 17px;font-weight:800;cursor:pointer;background:#fff;color:#0b0d10;white-space:nowrap}
-    .muted{color:#8e9ba9}.trust{display:flex;gap:16px;flex-wrap:wrap;color:#8995a3;font-size:14px;margin:14px 0}
-    .example{margin-top:38px;border:1px solid #2a313a;border-radius:18px;background:#0d1116;overflow:hidden}
-    .example-head{padding:13px 17px;border-bottom:1px solid #252c34;color:#9aa6b2;font-family:ui-monospace,monospace;font-size:13px}
-    pre{margin:0;padding:22px;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.65;color:#dce3ea}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:66px}
-    .tile{background:#12161b;border:1px solid #2a313a;border-radius:18px;padding:24px}.tile h3{margin:0 0 10px;font-size:20px}.tile p{margin:0;line-height:1.55;color:#939fac}
-    .trophy{margin-top:60px;border:1px solid #2a313a;border-radius:24px;padding:30px;background:#10151a}
-    .trophy strong{font-size:30px}.trophy p{color:#9ba6b1;line-height:1.6;max-width:720px}
-    @media(max-width:760px){.grid{grid-template-columns:1fr}.terminal{align-items:flex-start;flex-direction:column}main{padding-top:46px}}
+    :root {
+      color-scheme: dark;
+      --ink: #070b10;
+      --panel: #0c1219;
+      --panel-strong: #101922;
+      --rule: #22303d;
+      --rule-strong: #354759;
+      --text: #edf4fb;
+      --muted: #91a2b3;
+      --quiet: #66788a;
+      --ready: #78ddb0;
+      --fix: #f2c96d;
+      --manual: #ff8e8e;
+      --focus: #a8d7ff;
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      background: var(--ink);
+      color: var(--text);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; min-width: 320px; background: var(--ink); }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { font: inherit; }
+    button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+    .shell { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 76px;
+      border-bottom: 1px solid var(--rule);
+    }
+    header a { color: var(--muted); text-decoration: none; font-size: .9rem; }
+    header a:hover { color: var(--text); }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--rule-strong);
+      color: var(--ready);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: .78rem;
+      font-weight: 600;
+    }
+
+    main { padding: 76px 0 100px; }
+    .hero-copy { max-width: 920px; }
+    h1 {
+      margin: 0;
+      max-width: 900px;
+      font-size: clamp(3.5rem, 7vw, 6.8rem);
+      line-height: .94;
+      letter-spacing: -.065em;
+      font-weight: 600;
+    }
+    .lead {
+      max-width: 760px;
+      margin: 28px 0 0;
+      color: var(--muted);
+      font-size: clamp(1.15rem, 2vw, 1.42rem);
+      line-height: 1.55;
+    }
+
+    .checker {
+      margin-top: 58px;
+      border-top: 1px solid var(--rule-strong);
+      border-bottom: 1px solid var(--rule-strong);
+      background: linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size: 88px 100%;
+    }
+    .checker-bar {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 28px;
+      padding: 26px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+    .checker-label { color: var(--muted); font-size: .94rem; line-height: 1.5; }
+    .target-groups { display: flex; flex-wrap: wrap; gap: 20px 28px; }
+    .target-group { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .group-name { margin-right: 4px; color: var(--quiet); font-family: "IBM Plex Mono", monospace; font-size: .76rem; }
+    .target {
+      min-height: 40px;
+      padding: 8px 13px;
+      border: 1px solid var(--rule-strong);
+      border-radius: 4px;
+      background: var(--panel);
+      color: #c5d0db;
+      cursor: pointer;
+      font-size: .9rem;
+      font-weight: 600;
+    }
+    .target:hover { border-color: #577089; color: var(--text); }
+    .target.active { border-color: var(--text); background: var(--text); color: var(--ink); }
+
+    .diagnostic { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(290px, .72fr); }
+    .matrix-wrap { padding: 30px 32px 32px 0; overflow-x: auto; }
+    .diagnostic-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .diagnostic-heading h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+    .diagnostic-heading span { color: var(--quiet); font-family: "IBM Plex Mono", monospace; font-size: .76rem; }
+    .matrix { width: 100%; min-width: 600px; border-collapse: collapse; table-layout: fixed; }
+    .matrix th, .matrix td { padding: 15px 14px; border-bottom: 1px solid var(--rule); text-align: left; }
+    .matrix th { color: var(--muted); font-size: .85rem; font-weight: 500; }
+    .matrix th:first-child, .matrix td:first-child { width: 35%; padding-left: 0; }
+    .matrix tbody th { color: #c7d1dc; font-size: .92rem; }
+    .matrix th[data-harness], .matrix td[data-harness] { transition: opacity 160ms ease, background 160ms ease; }
+    .matrix.is-filtered th[data-harness]:not(.selected),
+    .matrix.is-filtered td[data-harness]:not(.selected) { opacity: .28; }
+    .matrix th.selected, .matrix td.selected { background: rgba(168, 215, 255, .055); }
+    .status { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-family: "IBM Plex Mono", monospace; font-size: .78rem; }
+    .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent); }
+    .status.ready { color: var(--ready); }
+    .status.fix { color: var(--fix); }
+    .status.manual { color: var(--manual); }
+    .score { color: var(--text); font-family: "IBM Plex Mono", monospace; font-size: .82rem; }
+
+    .finding {
+      min-width: 0;
+      padding: 30px;
+      border-left: 1px solid var(--rule);
+      background: rgba(12,18,25,.9);
+    }
+    .finding-meta { color: var(--fix); font-family: "IBM Plex Mono", monospace; font-size: .78rem; }
+    .finding-meta.manual, .finding-fix span.manual { color: var(--manual); }
+    .finding-meta.ready, .finding-fix span.ready { color: var(--ready); }
+    .finding h3 { margin: 18px 0 12px; font-family: "IBM Plex Mono", monospace; font-size: 1rem; font-weight: 600; }
+    .finding p { margin: 0; color: var(--muted); font-size: 1rem; line-height: 1.62; }
+    .finding-fix { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--rule); }
+    .finding-fix span { display: block; margin-bottom: 8px; color: var(--ready); font-size: .82rem; font-weight: 600; }
+    .finding-fix span.fix { color: var(--fix); }
+    .finding-fix code { color: #cfdae5; font-size: .82rem; line-height: 1.5; }
+
+    .command-area { display: grid; grid-template-columns: 170px 1fr; gap: 28px; padding: 28px 0 30px; }
+    .command-intro { color: var(--muted); font-size: .94rem; line-height: 1.5; }
+    .command-stack { min-width: 0; }
+    .terminal { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 66px; padding: 12px 12px 12px 18px; border: 1px solid var(--rule-strong); background: #080d12; }
+    code { font-family: "IBM Plex Mono", monospace; overflow-wrap: anywhere; color: var(--text); }
+    .terminal code { font-size: .86rem; }
+    .btn {
+      flex: 0 0 auto;
+      min-height: 42px;
+      padding: 10px 15px;
+      border: 0;
+      border-radius: 3px;
+      background: var(--text);
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #cfe6f8; }
+    .trust { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 15px; color: var(--quiet); font-size: .83rem; }
+    .trust span::before { content: "✓"; margin-right: 7px; color: var(--ready); }
+
+    .ref { margin: 26px 0 0; padding: 15px 17px; border-left: 2px solid var(--ready); background: var(--panel); color: #c7d1dc; display: none; }
+    #webResume { align-items: center; justify-content: space-between; gap: 16px; }
+    .muted { color: var(--muted); }
+
+    .process { display: grid; grid-template-columns: 1fr 2fr; gap: 72px; padding: 96px 0 84px; }
+    .process h2, .proof h2 { margin: 0; font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.05; letter-spacing: -.04em; font-weight: 600; }
+    .process-list { border-top: 1px solid var(--rule-strong); }
+    .process-step { display: grid; grid-template-columns: 48px 130px 1fr; gap: 20px; padding: 24px 0; border-bottom: 1px solid var(--rule); }
+    .step-number { color: var(--quiet); font-family: "IBM Plex Mono", monospace; font-size: .8rem; }
+    .process-step h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .process-step p { margin: 0; color: var(--muted); line-height: 1.6; }
+
+    .proof { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: end; padding: 42px 0 48px; border-top: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
+    .proof p { max-width: 640px; margin: 18px 0 0; color: var(--muted); line-height: 1.6; }
+    .proof-result { padding: 24px; border-left: 3px solid var(--ready); background: var(--panel); }
+    .proof-result span { display: block; color: var(--quiet); font-family: "IBM Plex Mono", monospace; font-size: .76rem; }
+    .proof-result strong { display: block; margin-top: 10px; font-size: clamp(1.35rem, 3vw, 2rem); }
+
+    footer { display: flex; justify-content: space-between; gap: 24px; padding: 28px 0 44px; color: var(--quiet); font-size: .82rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+
+    @media (max-width: 900px) {
+      .diagnostic { grid-template-columns: 1fr; }
+      .matrix-wrap { padding-right: 0; }
+      .finding { border-top: 1px solid var(--rule); border-left: 0; }
+      .process { grid-template-columns: 1fr; gap: 34px; }
+      .proof { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .shell { width: min(100% - 32px, 1180px); }
+      header { min-height: 66px; }
+      header a { font-size: 0; }
+      header a::after { content: "GitHub ↗"; font-size: .84rem; }
+      main { padding-top: 52px; }
+      h1 { font-size: clamp(3.1rem, 16vw, 5rem); }
+      .checker { margin-top: 42px; }
+      .checker-bar, .command-area { grid-template-columns: 1fr; gap: 16px; }
+      .target-groups { gap: 18px; }
+      .target-group { align-items: flex-start; }
+      .group-name { width: 100%; }
+      .matrix-wrap { padding-top: 24px; }
+      .terminal { align-items: stretch; flex-direction: column; }
+      .terminal .btn { width: 100%; }
+      .process { padding: 74px 0 64px; }
+      .process-step { grid-template-columns: 34px 90px 1fr; gap: 12px; }
+      footer { flex-direction: column; }
+    }
+    @media (max-width: 480px) {
+      .process-step { grid-template-columns: 32px 1fr; }
+      .process-step p { grid-column: 2; }
+      .finding { padding: 24px 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .matrix th[data-harness], .matrix td[data-harness] { transition: none; }
+    }
   </style>
 </head>
 <body>
 <div class="shell">
   <header>
-    <div class="brand">Agent Portability Check</div>
-    <a href="https://github.com/Sakshambhutani/agent-portability-check">View source on GitHub ↗</a>
+    <div class="brand"><span class="brand-mark" aria-hidden="true">AP</span>Agent Portability Check</div>
+    <a href="https://github.com/Sakshambhutani/agent-portability-check">View source on GitHub</a>
   </header>
 
   <main>
-    <div class="eyebrow">FREE · OPEN SOURCE · LOCAL-FIRST</div>
-    <h1 id="heroTitle">How portable is your AI setup?</h1>
-    <p class="lead" id="heroLead">Check your current setup, or simulate a move between Codex, Claude Code, and Cursor. See what is <strong>Ready</strong>, <strong>Auto-fix</strong>, or needs <strong>Manual attention</strong>.</p>
-
-    <div class="targets" aria-label="Choose what to check">
-      <button class="target" data-target="" data-runtime="local">Check current setup</button>
-      <button class="target" data-target="claude" data-runtime="local">Moving to Claude Code</button>
-      <button class="target" data-target="codex" data-runtime="local">Moving to Codex</button>
-      <button class="target" data-target="cursor" data-runtime="local">Moving to Cursor</button>
-      <button class="target" data-target="cursor" data-runtime="cloud">Moving to Cursor Cloud</button>
-    </div>
+    <section class="hero-copy" aria-labelledby="heroTitle">
+      <h1 id="heroTitle">Your agent works here.<br>Will it work there?</h1>
+      <p class="lead" id="heroLead">Check whether your skills, instructions, MCP tools, and dependencies work across Claude Code, Codex, Cursor, and local or cloud runtimes.</p>
+    </section>
 
     <div id="refbox" class="ref"></div>
-    <div id="webResume" class="ref" style="align-items:center;justify-content:space-between;gap:16px">
+    <div id="webResume" class="ref">
       <div>
         <strong id="webResumeTitle">Continue your last check</strong>
         <div class="muted" id="webResumeText" style="margin-top:4px">Your previous result is still available.</div>
@@ -60,50 +247,149 @@
       <a id="webResumeLink" class="btn" href="#">Open previous result</a>
     </div>
 
-    <div class="terminal">
-      <code id="command">npx github:Sakshambhutani/agent-portability-check</code>
-      <button id="copy" class="btn">Copy 10-second check</button>
-    </div>
-
-    <div class="trust">
-      <span>✓ Runs locally</span>
-      <span>✓ Skill contents stay on your machine</span>
-      <span>✓ No account required</span>
-      <span>✓ Open source</span>
-    </div>
-
-    <div class="example">
-      <div class="example-head" id="exampleHead">Example · current setup</div>
-      <pre id="exampleText">GLOBAL SETUP
-────────────────────────────────────
-Skills               7
-Portable-ready       3 / 7
-Drifted copies       1
-
-Run with --fix to preview safe changes.</pre>
-    </div>
-
-    <div class="grid">
-      <div class="tile">
-        <h3>1. Scan</h3>
-        <p>Find skills, installed agents, drifted copies, malformed metadata, and missing companion files.</p>
+    <section class="checker" aria-label="Agent compatibility checker">
+      <div class="checker-bar">
+        <div class="checker-label">Check your setup against</div>
+        <div class="target-groups">
+          <div class="target-group">
+            <span class="group-name">Current</span>
+            <button class="target" data-target="" data-runtime="local">My setup</button>
+          </div>
+          <div class="target-group">
+            <span class="group-name">Harness</span>
+            <button class="target" data-target="claude" data-runtime="local">Claude Code</button>
+            <button class="target" data-target="codex" data-runtime="local">Codex</button>
+            <button class="target" data-target="cursor" data-runtime="local">Cursor</button>
+          </div>
+          <div class="target-group">
+            <span class="group-name">Runtime</span>
+            <button class="target" data-target="cursor" data-runtime="cloud">Cursor Cloud</button>
+          </div>
+        </div>
       </div>
-      <div class="tile">
-        <h3>2. Fix</h3>
-        <p>Preview safe layout/discovery changes. Originals stay untouched; conflicts are never silently overwritten.</p>
-      </div>
-      <div class="tile">
-        <h3>3. Show off</h3>
-        <p>Reach 100% portable-ready or target-ready, then unlock a social card and README badge.</p>
-      </div>
-    </div>
 
-    <div class="trophy">
-      <div class="eyebrow">THE VIRAL OBJECT</div>
-      <strong id="viralObjectTitle">100% portable-ready 🏆</strong>
-      <p id="viralObjectText">Turn a portable setup into a shareable achievement, README badge, or team challenge.</p>
-    </div>
+      <div class="diagnostic">
+        <div class="matrix-wrap">
+          <div class="diagnostic-heading">
+            <h2>Example compatibility map</h2>
+            <span id="matrixSummary">7 skills checked</span>
+          </div>
+          <table class="matrix" id="matrix">
+            <thead>
+              <tr>
+                <th scope="col">Your setup</th>
+                <th scope="col" data-harness="claude">Claude Code</th>
+                <th scope="col" data-harness="codex">Codex</th>
+                <th scope="col" data-harness="cursor" id="cursorHeader">Cursor</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Skills</th>
+                <td data-harness="claude"><span class="score">7 / 7</span></td>
+                <td data-harness="codex"><span class="score">6 / 7</span></td>
+                <td data-harness="cursor"><span class="score" id="cursorSkillScore">5 / 7</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Instructions</th>
+                <td data-harness="claude"><span class="status ready">Ready</span></td>
+                <td data-harness="codex"><span class="status fix">Auto-fix</span></td>
+                <td data-harness="cursor"><span class="status fix">Auto-fix</span></td>
+              </tr>
+              <tr>
+                <th scope="row">MCP servers</th>
+                <td data-harness="claude"><span class="status ready">Ready</span></td>
+                <td data-harness="codex"><span class="status ready">Ready</span></td>
+                <td data-harness="cursor"><span class="status manual" id="cursorMcpStatus">Manual</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Dependencies</th>
+                <td data-harness="claude"><span class="status ready">Ready</span></td>
+                <td data-harness="codex"><span class="status ready">Ready</span></td>
+                <td data-harness="cursor"><span class="status ready">Ready</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Discovery paths</th>
+                <td data-harness="claude"><span class="status fix">Auto-fix</span></td>
+                <td data-harness="codex"><span class="status fix">Auto-fix</span></td>
+                <td data-harness="cursor"><span class="status fix">Auto-fix</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Companion files</th>
+                <td data-harness="claude"><span class="status ready">Ready</span></td>
+                <td data-harness="codex"><span class="status ready">Ready</span></td>
+                <td data-harness="cursor"><span class="status manual">Manual</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <aside class="finding" aria-live="polite">
+          <div class="finding-meta" id="findingMeta">Auto-fix available</div>
+          <h3 id="findingTitle">deploy-prod</h3>
+          <p id="findingText">Works locally, but Claude Code cannot discover it from its current location.</p>
+          <div class="finding-fix">
+            <span id="findingAction">Safe fix</span>
+            <code id="findingFix">Add a Claude discovery adapter in ~/.claude/skills</code>
+          </div>
+        </aside>
+      </div>
+
+      <div class="command-area">
+        <div class="command-intro" id="commandIntro">Run the check locally. Nothing changes unless you approve it.</div>
+        <div class="command-stack">
+          <div class="terminal">
+            <code id="command">npx github:Sakshambhutani/agent-portability-check</code>
+            <button id="copy" class="btn">Copy and run</button>
+          </div>
+          <div class="trust" aria-label="Privacy and safety">
+            <span>Runs locally</span>
+            <span>Skill contents stay on your machine</span>
+            <span>Preview before write</span>
+            <span>No account</span>
+            <span>Open source</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="process" aria-labelledby="processTitle">
+      <h2 id="processTitle">See exactly what won’t carry over.</h2>
+      <div class="process-list">
+        <div class="process-step">
+          <span class="step-number">01</span>
+          <h3>Scan</h3>
+          <p>Detect skills, configs, instructions, dependencies, drift, and missing companion files.</p>
+        </div>
+        <div class="process-step">
+          <span class="step-number">02</span>
+          <h3>Understand</h3>
+          <p>See what works in each supported harness or runtime, and why something does not.</p>
+        </div>
+        <div class="process-step">
+          <span class="step-number">03</span>
+          <h3>Fix</h3>
+          <p>Preview safe discovery and layout changes. Originals stay untouched and conflicts are never silently resolved.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="proof" aria-labelledby="proofTitle">
+      <div>
+        <h2 id="proofTitle">100% portable?<br>Prove it.</h2>
+        <p id="proofText">Once every checked skill is portable-ready, generate a shareable result or add a compatibility badge to your README.</p>
+      </div>
+      <div class="proof-result">
+        <span>Verified result</span>
+        <strong id="proofResultTitle">100% portable-ready</strong>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <span>Free, open source, and local-first.</span>
+    <a href="https://github.com/Sakshambhutani/agent-portability-check">Read the source on GitHub</a>
+  </footer>
 </div>
 
 <script>
@@ -116,16 +402,71 @@ const initialRuntime = params.get('runtime') === 'cloud' && initialTarget === 'c
 
 const labels = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', '': 'your current setup' };
 const targetButtons = [...document.querySelectorAll('.target')];
-const heroTitle = document.getElementById('heroTitle');
-const heroLead = document.getElementById('heroLead');
 const commandEl = document.getElementById('command');
 const copyEl = document.getElementById('copy');
-const exampleHead = document.getElementById('exampleHead');
-const exampleText = document.getElementById('exampleText');
-const viralObjectTitle = document.getElementById('viralObjectTitle');
-const viralObjectText = document.getElementById('viralObjectText');
+const commandIntro = document.getElementById('commandIntro');
+const matrix = document.getElementById('matrix');
+const matrixSummary = document.getElementById('matrixSummary');
+const findingMeta = document.getElementById('findingMeta');
+const findingTitle = document.getElementById('findingTitle');
+const findingText = document.getElementById('findingText');
+const findingAction = document.getElementById('findingAction');
+const findingFix = document.getElementById('findingFix');
+const cursorSkillScore = document.getElementById('cursorSkillScore');
+const cursorMcpStatus = document.getElementById('cursorMcpStatus');
+const cursorHeader = document.getElementById('cursorHeader');
+const proofText = document.getElementById('proofText');
+const proofResultTitle = document.getElementById('proofResultTitle');
 let selectedTarget = initialTarget;
 let selectedRuntime = initialRuntime;
+
+const findings = {
+  current: {
+    tone: 'fix',
+    meta: 'Auto-fix available',
+    title: 'deploy-prod',
+    text: 'Works locally, but Claude Code cannot discover it from its current location.',
+    action: 'Safe fix',
+    fix: 'Add a Claude discovery adapter in ~/.claude/skills',
+    summary: '7 skills checked'
+  },
+  claude: {
+    tone: 'fix',
+    meta: '3 ready · 3 auto-fix · 1 manual',
+    title: 'deploy-prod',
+    text: 'The package is valid, but Claude Code cannot discover it from its current location.',
+    action: 'Safe fix',
+    fix: 'Add a discovery adapter in ~/.claude/skills',
+    summary: 'Checking against Claude Code'
+  },
+  codex: {
+    tone: 'fix',
+    meta: '4 ready · 2 auto-fix · 1 manual',
+    title: 'project-instructions',
+    text: 'This project has Claude-specific instructions but no equivalent AGENTS.md for Codex.',
+    action: 'Review needed',
+    fix: 'Create AGENTS.md without silently translating conflicting instructions',
+    summary: 'Checking against Codex'
+  },
+  cursor: {
+    tone: 'manual',
+    meta: '3 ready · 3 auto-fix · 1 manual',
+    title: 'incident-response',
+    text: 'The skill references a companion script that is not present in the package.',
+    action: 'Manual attention',
+    fix: 'Restore scripts/check.sh or update the skill reference',
+    summary: 'Checking against Cursor'
+  },
+  cursorCloud: {
+    tone: 'manual',
+    meta: '2 ready · 2 auto-fix · 3 manual',
+    title: 'local-observability',
+    text: 'This skill depends on a local MCP server that is unavailable in the cloud runtime.',
+    action: 'Manual attention',
+    fix: 'Provide a cloud-accessible MCP endpoint or keep this skill local-only',
+    summary: 'Checking against Cursor Cloud'
+  }
+};
 
 function buildCommand() {
   return [
@@ -139,48 +480,44 @@ function buildCommand() {
 }
 
 function updateUI() {
-  targetButtons.forEach(button => button.classList.toggle('active', button.dataset.target === selectedTarget && (button.dataset.runtime || 'local') === selectedRuntime));
+  targetButtons.forEach(button => {
+    const isActive = button.dataset.target === selectedTarget && (button.dataset.runtime || 'local') === selectedRuntime;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
+
   commandEl.textContent = buildCommand();
-  copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy 10-second check';
+  copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy and run';
+  commandIntro.textContent = selectedTarget
+    ? 'Run a local check against ' + labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '') + '.'
+    : 'Run the check locally. Nothing changes unless you approve it.';
 
+  const selectedHarness = selectedTarget || '';
+  matrix.classList.toggle('is-filtered', Boolean(selectedHarness));
+  matrix.querySelectorAll('[data-harness]').forEach(cell => {
+    cell.classList.toggle('selected', cell.dataset.harness === selectedHarness);
+  });
+
+  const isCloud = selectedTarget === 'cursor' && selectedRuntime === 'cloud';
+  const finding = isCloud ? findings.cursorCloud : findings[selectedTarget || 'current'];
+  matrixSummary.textContent = finding.summary;
+  findingMeta.textContent = finding.meta;
+  findingMeta.className = 'finding-meta ' + finding.tone;
+  findingTitle.textContent = finding.title;
+  findingText.textContent = finding.text;
+  findingAction.textContent = finding.action;
+  findingAction.className = finding.tone;
+  findingFix.textContent = finding.fix;
+  cursorSkillScore.textContent = isCloud ? '4 / 7' : '5 / 7';
+  cursorMcpStatus.textContent = isCloud ? 'Cloud gap' : 'Manual';
+  cursorHeader.textContent = isCloud ? 'Cursor Cloud' : 'Cursor';
   if (selectedTarget) {
-    const label = labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '');
-    heroTitle.textContent = 'Moving to ' + label + '? See what won’t carry over.';
-    heroLead.innerHTML = 'Run a local compatibility check before you move. See what is <strong>Ready</strong>, what can be <strong>Auto-fixed</strong>, and what needs <strong>Manual attention</strong>.';
-    viralObjectTitle.textContent = '7 / 7 ready for ' + label + ' 🏆';
-    viralObjectText.textContent = 'Once the target check passes, the result becomes a shareable trophy, README badge, or teammate challenge.';
+    const targetLabel = labels[selectedTarget] + (isCloud ? ' Cloud' : '');
+    proofResultTitle.textContent = '7 / 7 ready for ' + targetLabel;
+    proofText.textContent = 'Once the target check passes, generate a shareable result or add a compatibility badge to your README.';
   } else {
-    heroTitle.textContent = 'How portable is your AI setup?';
-    heroLead.innerHTML = 'Check your current setup, or simulate a move between Codex, Claude Code, and Cursor. See what is <strong>Ready</strong>, <strong>Auto-fix</strong>, or needs <strong>Manual attention</strong>.';
-    viralObjectTitle.textContent = '100% portable-ready 🏆';
-    viralObjectText.textContent = 'Turn a portable setup into a shareable achievement, README badge, or team challenge.';
-  }
-
-  if (selectedTarget) {
-    const label = labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '');
-    exampleHead.textContent = 'Example · migration to ' + label;
-    exampleText.textContent =
-`TARGET COMPATIBILITY — ${label}
-────────────────────────────────────
-Skills checked       7
-Ready                3
-Auto-fix             3
-Manual attention     1
-
-✓ code-review — READY
-⚡ deploy-prod — AUTO-FIX
-✕ incident-response — MANUAL
-  Missing companion file: scripts/check.sh`;
-  } else {
-    exampleHead.textContent = 'Example · current setup';
-    exampleText.textContent =
-`GLOBAL SETUP
-────────────────────────────────────
-Skills               7
-Portable-ready       3 / 7
-Drifted copies       1
-
-Run with --fix to preview safe changes.`;
+    proofResultTitle.textContent = '100% portable-ready';
+    proofText.textContent = 'Once every checked skill is portable-ready, generate a shareable result or add a compatibility badge to your README.';
   }
 
   const url = new URL(location.href);
@@ -227,14 +564,14 @@ if (!ref && !wantsFix && !team) {
       link.href = previousUrl.toString();
       if (previous.complete) {
         title.textContent = 'Your last achievement is still here';
-        text.textContent = 'Reopen your trophy, share it, or compare with your team.';
-        link.textContent = 'Open trophy →';
+        text.textContent = 'Reopen your result, share it, or compare with your team.';
+        link.textContent = 'Open result';
       } else {
         title.textContent = 'Continue your last portability check';
         text.textContent = previous.target
-          ? 'Resume your ' + previous.target + ' migration result.'
+          ? 'Resume your ' + previous.target + ' compatibility result.'
           : 'Resume your previous setup check.';
-        link.textContent = 'Continue →';
+        link.textContent = 'Continue';
       }
       link.addEventListener('click',()=>track('apc_web_resume_clicked'));
     }
@@ -262,7 +599,8 @@ track('apc_landing_viewed', { target_agent:selectedTarget || 'current', target_r
 
 copyEl.addEventListener('click', async () => {
   await navigator.clipboard.writeText(buildCommand());
-  copyEl.textContent = wantsFix ? 'Copied — paste in Terminal' : 'Copied — paste in Terminal';
+  copyEl.textContent = 'Copied — paste in Terminal';
+  window.setTimeout(() => { copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy and run'; }, 2200);
   track('apc_command_copied', { target_agent:selectedTarget || 'current', target_runtime:selectedRuntime });
 });
 
