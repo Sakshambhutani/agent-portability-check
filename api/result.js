@@ -302,6 +302,18 @@ Result link will be included when you copy.`;
   badge.searchParams.set('total', String(allMode ? allTargetsTotal : target ? targetTotal : total));
   const badgeMarkdown = `[![Agent Portability](${badge.toString()})](${canonical})`;
 
+  const allRowsHtml = allMode
+    ? `<div class="all-targets">
+        ${allRows.map(row => `<div class="all-row">
+          <div><strong>${esc(row.label || row.id)}</strong><div class="muted">${row.ready}/${row.total} skills ready</div></div>
+          <span class="pill">${row.autoFix} auto</span>
+          <span class="pill">${row.manual} manual</span>
+          <span class="pill">${row.context} context</span>
+          <strong>${row.complete ? '✓ Ready' : 'Needs work'}</strong>
+        </div>`).join('')}
+      </div>`
+    : '';
+
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.status(200).send(`<!doctype html>
@@ -346,21 +358,28 @@ Result link will be included when you copy.`;
     .identity input{width:100%;background:#090c0f;color:#fff;border:1px solid #303945;border-radius:11px;padding:12px 13px;margin-top:10px}
     .identity .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.hidden{display:none!important}
     .identity-status{color:#9aa6b2;margin-top:12px;min-height:22px}
+    .all-targets{margin-top:22px;border-top:1px solid #2a313a}
+    .all-row{display:grid;grid-template-columns:minmax(180px,1fr) auto auto auto 90px;gap:10px;align-items:center;padding:13px 0;border-bottom:1px solid #242b33}
+    @media(max-width:680px){.all-row{grid-template-columns:1fr 1fr}.all-row>div{grid-column:1/-1}}
     @media(max-width:680px){.card{padding:28px}.cta{align-items:flex-start;flex-direction:column}}
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card">
-    <div class="eyebrow">${target ? 'MIGRATION CHECK' : 'AGENT PORTABILITY CHECK'}</div>
-    <h1>${target ? `Ready for ${esc(targetLabel)}?` : 'How portable is my AI setup?'}</h1>
+    <div class="eyebrow">${allMode ? 'ALL-HARNESS CHECK' : target ? 'MIGRATION CHECK' : 'AGENT PORTABILITY CHECK'}</div>
+    <h1>${allMode ? 'Ready across your harnesses?' : target ? `Ready for ${esc(targetLabel)}?` : 'How portable is my AI setup?'}</h1>
 
     <div class="hero">${esc(hero)}</div>
     <div class="hero-label">${esc(heroLabel)}</div>
-    <div class="context">${esc(agentLabel)} setup · ${total} global skills</div>
+    <div class="context">${allMode ? `${allTargetsTotal} supported harness surfaces · ${total} global skills` : `${esc(agentLabel)} setup · ${total} global skills`}</div>
 
     <div class="stats">
-      ${target ? `
+      ${allMode ? `
+        <span class="pill">${allTargetsReady}/${allTargetsTotal} targets ready</span>
+        <span class="pill">${allRows.filter(row => row.manual > 0).length} targets need review</span>
+        <span class="pill">${allRows.filter(row => row.context > 0).length} targets with context gaps</span>
+      ` : target ? `
         <span class="pill">${targetAuto} auto-fix</span>
         <span class="pill">${targetManual} manual</span>
         <span class="pill">${targetDeps} dependency blockers</span>
@@ -372,6 +391,7 @@ Result link will be included when you copy.`;
     </div>
 
     <div class="insight">${esc(description)}</div>
+    ${allRowsHtml}
 
     ${shareAchievement ? `
       <div class="copybox" id="posttext">${esc(postPreview)}</div>
