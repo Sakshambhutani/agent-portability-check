@@ -338,6 +338,9 @@ function printScope(title, data, installedCount) {
   console.log(`Portable-ready      ${data.portableReadySkills ?? 0} / ${data.totalSkills}`);
   console.log(`Readiness           ${data.portableReadyPercent === null ? 'N/A' : `${data.portableReadyPercent}%`}`);
   console.log(`Shared location     ${data.sharedFormatSkills} / ${data.totalSkills}`);
+  if (data.managedSkillCount) {
+    console.log(`Harness-managed    ${data.managedSkillCount} (excluded from readiness)`);
+  }
   if (installedCount >= 2) {
     console.log(`Across all agents   ${data.portableAcrossInstalled} / ${data.totalSkills}`);
     console.log(`Cross-agent score   ${data.score === null ? 'N/A' : `${data.score}%`}`);
@@ -421,8 +424,9 @@ async function main() {
     if (fixPlan.changeCount > 0) {
       const approved = args.yes || await confirmFix();
       if (approved) {
-        applyPortableReadyFix(fixPlan);
         const before = report.global.portableReadyPercent;
+        const beforeTargetReady = targetReport?.readyPercent ?? null;
+        applyPortableReadyFix(fixPlan);
         report = scan({ cwd: args.cwd });
         targetReport = args.target
           ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
@@ -433,8 +437,14 @@ async function main() {
         console.log('\n✓ Fix applied');
         console.log(`Portable readiness   ${before === null ? 'N/A' : `${before}%`} → ${after === null ? 'N/A' : `${after}%`}`);
         if (targetReport) {
+          console.log(`Target readiness     ${beforeTargetReady === null ? 'N/A' : `${beforeTargetReady}%`} → ${targetReport.readyPercent === null ? 'N/A' : `${targetReport.readyPercent}%`}`);
           printTargetCompatibility(targetReport, { heading: 'AFTER FIX' });
-          if (targetReport.fullyReady) console.log(`🏆 ALL SKILLS + CONTEXT READY FOR ${targetReport.targetLabel.toUpperCase()}`);
+          if (targetReport.skillPackagesReady) {
+            console.log(`🏆 ALL SKILL PACKAGES READY FOR ${targetReport.targetLabel.toUpperCase()}`);
+            if (targetReport.contextRisks?.length) {
+              console.log(`⚠ ${targetReport.contextRisks.length} context gap${targetReport.contextRisks.length === 1 ? '' : 's'} still shown separately.`);
+            }
+          }
         }
         if (after === 100) console.log('🏆 100% PORTABLE-READY');
       } else {
@@ -580,13 +590,16 @@ async function main() {
         : hasManualIssues
           ? '\n[R] Review issues  [T] Test migration  [V] View diagnostic  [Q] Continue later\nChoose: '
           : '\n[T] Test migration  [V] View diagnostic  [Q] Continue later\nChoose: ';
-      const answer = (await ask(actionPrompt)).toLowerCase();
+      let answer = (await ask(actionPrompt)).toLowerCase();
+
+      if (answer === 'r' && hasManualIssues) {
+        printManualReview(previewPlan.conflicts);
+        manualReviewedNow = true;
+        answer = (await ask('\n[T] Test migration  [V] View diagnostic  [Q] Continue later\nChoose: ')).toLowerCase();
+      }
 
       if (answer === 'f' && hasSafeFixes) {
         followUp = { type: 'spawn', args: ['--fix'] };
-      } else if (answer === 'r' && hasManualIssues) {
-        printManualReview(previewPlan.conflicts);
-        manualReviewedNow = true;
       } else if (answer === 't') {
         const choice = await chooseMigrationTarget();
         if (choice) {
