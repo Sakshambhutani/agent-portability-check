@@ -106,8 +106,8 @@ function commandForTeam() {
   if (!team) return '';
   return [
     'npx github:Sakshambhutani/agent-portability-check',
-    team.target ? '--target ' + team.target : '',
-    team.runtime === 'cloud' ? '--runtime cloud' : '',
+    team.mode === 'all' ? '--all' : team.target ? '--target ' + team.target : '',
+    team.mode !== 'all' && team.runtime === 'cloud' ? '--runtime cloud' : '',
     '--team ' + code,
   ].filter(Boolean).join(' ');
 }
@@ -123,7 +123,7 @@ function renderLeaderboard(rows) {
     const detail = result ? result.ready + '/' + result.total : 'No scan';
     const issues = result ? (result.manual + result.context_gaps + result.dependency_blockers) : 0;
     return '<div class="leader">' +
-      '<div><strong>' + escapeHtml(item.display_name) + '</strong><div class="muted">' + (result ? escapeHtml(result.target || 'portable-ready') : 'waiting for scan') + '</div></div>' +
+      '<div><strong>' + escapeHtml(item.display_name) + '</strong><div class="muted">' + (result ? escapeHtml(result.mode === 'all' ? 'all harnesses' : (result.target || 'portable-ready')) : 'waiting for scan') + '</div></div>' +
       '<div class="score ' + (result?.complete ? 'good' : '') + '">' + score + '</div>' +
       '<div class="desktop">' + detail + ' ready</div>' +
       '<div class="desktop ' + (issues ? 'warn' : 'good') + '">' + (result ? issues + ' gaps' : '—') + '</div>' +
@@ -146,7 +146,11 @@ async function loadTeam() {
   const data = await response.json();
   team = data.team;
   $('teamName').textContent = team.name;
-  const label = team.target ? team.target + (team.runtime === 'cloud' ? ' cloud' : '') : 'portable readiness';
+  const label = team.mode === 'all'
+    ? 'all-harness readiness'
+    : team.target
+      ? team.target + (team.runtime === 'cloud' ? ' cloud' : '')
+      : 'portable readiness';
   $('teamLead').textContent = 'Compare the latest ' + label + ' result across teammates.';
   renderLeaderboard(data.leaderboard || []);
   $('command').textContent = commandForTeam();
