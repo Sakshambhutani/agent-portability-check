@@ -258,6 +258,31 @@ function skillScopes(report) {
   ];
 }
 
+function readinessEvidence({
+  discoverable = null,
+  packageComplete = null,
+  dependenciesAvailable = null,
+  versionConsistent = true,
+} = {}) {
+  return {
+    discoverable,
+    packageComplete,
+    dependenciesAvailable,
+    versionConsistent,
+    authentication: 'not-tested',
+    execution: 'not-tested',
+  };
+}
+
+function sourceEvidence(copy) {
+  return {
+    type: copy?.sourceType || 'skill-root',
+    owner: copy?.owner || null,
+    pluginHost: copy?.pluginHost || null,
+    pluginId: copy?.pluginId || null,
+  };
+}
+
 export function analyzeTargetCompatibility(report, target, {
   cwd = report.cwd || process.cwd(),
   home = os.homedir(),
@@ -282,7 +307,16 @@ export function analyzeTargetCompatibility(report, target, {
   for (const [scope, statuses] of skillScopes(report)) {
     for (const status of statuses) {
       if (status.drifted) {
-        skills.push({ name: status.name, scope, status: 'manual', reason: 'Same-name copies have different contents. Pick a canonical version before migrating.', fix: null, dependencies: { commands: [], environment: [], mcpServers: [], blockers: [] } });
+        skills.push({
+          name: status.name,
+          scope,
+          status: 'manual',
+          reason: 'Same-name copies have different contents. Pick a canonical version before migrating.',
+          fix: null,
+          source: sourceEvidence(status.copies[0]),
+          readiness: readinessEvidence({ versionConsistent: false }),
+          dependencies: { commands: [], environment: [], mcpServers: [], blockers: [] },
+        });
         continue;
       }
 
@@ -290,7 +324,20 @@ export function analyzeTargetCompatibility(report, target, {
       if (!inspection) continue;
       const problems = structuralProblems(inspection, target);
       if (problems.length) {
-        skills.push({ name: status.name, scope, status: 'manual', reason: problems.join(' '), fix: null, dependencies: { commands: [], environment: [], mcpServers: [], blockers: [] } });
+        skills.push({
+          name: status.name,
+          scope,
+          status: 'manual',
+          reason: problems.join(' '),
+          fix: null,
+          source: sourceEvidence(inspection.copy),
+          readiness: readinessEvidence({
+            discoverable: status.copies.some(copy => targetCanSee(copy, target, runtime)),
+            packageComplete: false,
+            dependenciesAvailable: null,
+          }),
+          dependencies: { commands: [], environment: [], mcpServers: [], blockers: [] },
+        });
         continue;
       }
 
@@ -299,7 +346,20 @@ export function analyzeTargetCompatibility(report, target, {
         if (localReason) {
           localOnlyRisks.push({ name: status.name, scope, reason: localReason });
           const dependencies = evaluateDependencies({ content: inspection.content, resolvedReferences: inspection.resolvedReferences, target, runtime, env, commandCheck, mcpServers: resolvedMcpServers });
-          skills.push({ name: status.name, scope, status: 'manual', reason: [localReason, ...dependencies.blockers].join(' '), fix: null, dependencies });
+          skills.push({
+            name: status.name,
+            scope,
+            status: 'manual',
+            reason: [localReason, ...dependencies.blockers].join(' '),
+            fix: null,
+            source: sourceEvidence(inspection.copy),
+            readiness: readinessEvidence({
+              discoverable: false,
+              packageComplete: true,
+              dependenciesAvailable: dependencies.blockers.length === 0,
+            }),
+            dependencies,
+          });
           continue;
         }
       }
@@ -312,8 +372,24 @@ export function analyzeTargetCompatibility(report, target, {
       const fix = visible ? null : targetMeta.fix;
       const dependencies = evaluateDependencies({ content: inspection.content, resolvedReferences: inspection.resolvedReferences, target, runtime, env, commandCheck, mcpServers: resolvedMcpServers });
 
-      if (dependencies.blockers.length) skills.push({ name: status.name, scope, status: 'manual', reason: [baseReason, ...dependencies.blockers].join(' '), fix, dependencies });
-      else skills.push({ name: status.name, scope, status: baseStatus, reason: baseReason, fix, dependencies });
+      const readiness = readinessEvidence({
+        discoverable: visible,
+        packageComplete: true,
+        dependenciesAvailable: dependencies.blockers.length === 0,
+      });
+      const item = {
+        name: status.name,
+        scope,
+        source: sourceEvidence(inspection.copy),
+        readiness,
+        dependencies,
+        fix,
+      };
+      if (dependencies.blockers.length) {
+        skills.push({ ...item, status: 'manual', reason: [baseReason, ...dependencies.blockers].join(' ') });
+      } else {
+        skills.push({ ...item, status: baseStatus, reason: baseReason });
+      }
     }
   }
 
@@ -327,6 +403,13 @@ export function analyzeTargetCompatibility(report, target, {
     ready: skills.filter(skill => skill.status === 'ready').length,
     autoFix: skills.filter(skill => skill.status === 'auto-fix').length,
     manual: skills.filter(skill => skill.status === 'manual').length,
+    dimensions: {
+      discoverable: skills.filter(skill => skill.readiness?.discoverable === true).length,
+      packageComplete: skills.filter(skill => skill.readiness?.packageComplete === true).length,
+      dependenciesAvailable: skills.filter(skill => skill.readiness?.dependenciesAvailable === true).length,
+      authenticationTested: skills.filter(skill => skill.readiness?.authentication === 'tested').length,
+      executionTested: skills.filter(skill => skill.readiness?.execution === 'tested').length,
+    },
   };
   const contextRisks = buildContextRisks(report, target, runtime);
   const dependencyRiskCount = skills.reduce((sum, skill) => sum + (skill.dependencies?.blockers?.length || 0), 0);
