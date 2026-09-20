@@ -298,7 +298,7 @@ test('new harness MCP configs satisfy explicit MCP references', () => {
   const cases = [
     ['gemini', '.gemini/settings.json', { mcpServers: { datadog: { command: 'npx' } } }],
     ['copilot', '.github/mcp.json', { mcpServers: { datadog: { type: 'local', command: 'npx' } } }],
-    ['opencode', 'opencode.json', { mcp: { servers: { datadog: { type: 'local', command: ['npx'] } } } }],
+    ['opencode', 'opencode.json', { mcp: { datadog: { type: 'local', command: ['npx'] } } }],
     ['roo', '.roo/mcp.json', { mcpServers: { datadog: { command: 'npx' } } }],
   ];
 
