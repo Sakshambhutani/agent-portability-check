@@ -332,6 +332,52 @@ Result link will be included when you copy.`;
         </div>
         <a id="check" class="primary" href="${esc(checkUrl)}">Challenge teammate →</a>
       </div>
+
+      <div class="identity">
+        <h2>Compare with your team</h2>
+        <p class="muted">Keep the individual scan account-free. Sign in only if you want to save this achievement and compare results with teammates.</p>
+        <div class="actions">
+          <button id="teamAction" class="secondary hidden">Save result / Compare team</button>
+        </div>
+      </div>
+
+      <div id="identityPanel" class="identity hidden">
+        <h2>Save result / Compare with team</h2>
+        <p class="muted">Identity is requested only for the multiplayer layer. Skill names and contents are not uploaded.</p>
+
+        <div id="identitySignedOut">
+          <input id="identityEmail" type="email" autocomplete="email" placeholder="Work email">
+          <div class="row">
+            <button id="identityEmailLogin" class="primary">Email sign-in</button>
+            <button id="identityGithubLogin" class="secondary hidden">GitHub sign-in</button>
+          </div>
+        </div>
+
+        <div id="identitySignedIn" class="hidden">
+          <p id="identityWho" class="muted"></p>
+          <input id="displayNameInput" type="text" autocomplete="name" placeholder="Your name (optional)">
+          <div class="row">
+            <button id="saveResult" class="primary">Save result</button>
+            <button id="showCreateTeam" class="secondary">Create team</button>
+          </div>
+
+          <div id="createTeamArea" class="hidden">
+            <input id="teamNameInput" type="text" placeholder="Team name">
+            <div class="row">
+              <button id="createTeam" class="primary">Create team & save result</button>
+            </div>
+          </div>
+
+          <div id="teamInviteArea" class="hidden">
+            <div class="copybox" id="teamInviteUrl"></div>
+            <div class="row">
+              <button id="copyTeamInvite" class="primary">Copy teammate invite</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="identityStatus" class="identity-status"></div>
+      </div>
     ` : `
       <div class="insight">
         <strong>This is your private diagnostic.</strong><br>
