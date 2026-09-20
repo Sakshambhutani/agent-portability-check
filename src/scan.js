@@ -580,7 +580,10 @@ function analyzeScope(skills, installedKeys) {
     if (hasDrift) drift.push({ name, copies });
 
     const availableToInstalled = (key) => copies.some(copy =>
-      visibleOwnersFor(key, copy.scope).has(copy.owner) && copy.packageValid
+      copy.packageValid && (
+        copy.pluginHost === key ||
+        visibleOwnersFor(key, copy.scope).has(copy.owner)
+      )
     );
 
     let portableAcrossInstalled = false;
