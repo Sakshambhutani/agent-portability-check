@@ -97,17 +97,16 @@ npx github:Sakshambhutani/agent-portability-check \
 
 Use the JSON report rather than scraping terminal prose.
 
-If the user says "make it portable everywhere", evaluate:
+If the user says "make it portable everywhere", use the first-class all-harness scan:
 
-- general/shared-format readiness,
-- Claude Code,
-- Codex,
-- Cursor local,
-- Gemini CLI,
-- GitHub Copilot,
-- OpenCode,
-- Roo Code,
-- Cursor Cloud and GitHub Copilot Cloud Agent when cloud portability is relevant.
+```bash
+npx github:Sakshambhutani/agent-portability-check \
+  --path "$ROOT" \
+  --all \
+  --json --no-write --no-publish
+```
+
+This evaluates Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, Cursor Cloud, and GitHub Copilot Cloud Agent in one report. Use the consolidated matrix instead of orchestrating separate target scans yourself.
 
 ## Step 2: Apply deterministic safe fixes
 
@@ -129,6 +128,16 @@ npx github:Sakshambhutani/agent-portability-check \
   --path "$ROOT" \
   --fix --yes --no-publish
 ```
+
+For "portable everywhere", use one consolidated safe-fix pass:
+
+```bash
+npx github:Sakshambhutani/agent-portability-check \
+  --path "$ROOT" \
+  --all --fix --yes --no-publish
+```
+
+The all-harness fix pass only applies deterministic shared-package/discovery changes. It does not guess cloud placement, credentials, context semantics, or ambiguous dependency fixes.
 
 The checker is allowed to create canonical shared copies and safe discovery adapters. It does not silently overwrite existing skill packages.
 
@@ -191,7 +200,7 @@ A target achievement is valid when all **user-controlled skill packages** for th
 
 Do not turn a context warning into the false claim that two harnesses will behave identically.
 
-If the user asked for multiple targets, verify each target separately.
+If the user asked for a specific subset of targets, verify each requested target. If they asked for "everywhere" or "all harnesses", re-run the single `--all` diagnostic and use its consolidated verification state.
 
 ## Step 6: Create the final result page
 
