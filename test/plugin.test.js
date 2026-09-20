@@ -11,6 +11,12 @@ test('portable plugin manifest and agent-portability skill are valid', () => {
   assert.equal(manifest.name, 'agent-portability');
   assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
 
+  const claudeManifest = JSON.parse(
+    fs.readFileSync(path.join(root, '.claude-plugin/plugin.json'), 'utf8')
+  );
+  assert.equal(claudeManifest.name, 'agent-portability');
+  assert.equal(claudeManifest.version, manifest.version);
+
   const skillPath = path.join(root, 'skills/agent-portability/SKILL.md');
   const content = fs.readFileSync(skillPath, 'utf8');
   assert.match(content, /^---\nname: agent-portability\ndescription: .+\n---/);
