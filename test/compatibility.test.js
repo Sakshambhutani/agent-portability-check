@@ -343,3 +343,94 @@ test('all-harness achievement requires every target surface to be package-ready'
   assert.equal(all.summary.allSkillPackagesReady, false);
   assert.ok(all.targets.find(item => item.target === 'cursor' && item.runtime === 'cloud').summary.manual > 0);
 });
+
+
+test('installed Claude plugin skill is ready in Claude but plugin-root dependency blocks migration', () => {
+  const { cwd, home } = fixture();
+  const pluginRoot = path.join(home, '.claude/plugins/cache/community/reviewer/1.0.0');
+  write(
+    path.join(pluginRoot, 'skills/deep-review/SKILL.md'),
+    skill('deep-review', 'Run ${CLAUDE_PLUGIN_ROOT}/scripts/check.sh'),
+  );
+  write(path.join(pluginRoot, 'scripts/check.sh'), '#!/bin/sh\nexit 0\n');
+  write(
+    path.join(home, '.claude/plugins/installed_plugins.json'),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        'reviewer@community': [{ scope: 'user', installPath: pluginRoot }],
+      },
+    }),
+  );
+
+  const report = scan({ cwd, home, installedHarnesses: ['claude'] });
+  const claude = analyzeTargetCompatibility(report, 'claude', { cwd, home });
+  const codex = analyzeTargetCompatibility(report, 'codex', { cwd, home });
+
+  assert.equal(claude.summary.ready, 1);
+  assert.equal(claude.skills[0].source.type, 'plugin');
+  assert.equal(claude.skills[0].source.pluginId, 'reviewer@community');
+  assert.equal(codex.summary.manual, 1);
+  assert.match(codex.skills[0].reason, /plugin-root companion/i);
+});
+
+test('readiness dimensions separate package evidence from auth and execution', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'codex', { cwd, home });
+
+  assert.deepEqual(target.skills[0].readiness, {
+    discoverable: true,
+    packageComplete: true,
+    dependenciesAvailable: true,
+    versionConsistent: true,
+    authentication: 'not-tested',
+    execution: 'not-tested',
+  });
+  assert.equal(target.summary.dimensions.discoverable, 1);
+  assert.equal(target.summary.dimensions.packageComplete, 1);
+  assert.equal(target.summary.dimensions.dependenciesAvailable, 1);
+  assert.equal(target.summary.dimensions.authenticationTested, 0);
+  assert.equal(target.summary.dimensions.executionTested, 0);
+});
+
+test('example CLI commands are reported as optional and do not block readiness', () => {
+  const { cwd, home } = fixture();
+  write(
+    path.join(home, '.agents/skills/review/SKILL.md'),
+    skill('review', 'For example, you can run `vercel --version` to inspect a deployment tool.'),
+  );
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'codex', {
+    cwd,
+    home,
+    commandCheck: () => false,
+  });
+
+  assert.equal(target.summary.ready, 1);
+  const dep = target.skills[0].dependencies.commands.find(item => item.name === 'vercel');
+  assert.equal(dep.required, false);
+  assert.equal(dep.needsSetup, false);
+});
+
+test('explicit required CLI remains a dependency blocker', () => {
+  const { cwd, home } = fixture();
+  write(
+    path.join(home, '.agents/skills/review/SKILL.md'),
+    skill('review', 'Prerequisite: you must have `supabase --version` available.'),
+  );
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'codex', {
+    cwd,
+    home,
+    commandCheck: () => false,
+  });
+
+  assert.equal(target.summary.manual, 1);
+  assert.match(target.skills[0].reason, /supabase/i);
+  assert.equal(target.skills[0].readiness.dependenciesAvailable, false);
+});
