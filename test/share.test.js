@@ -47,6 +47,10 @@ test('includes target migration outcome without local details', () => {
   const targetCompatibility = {
     target: 'claude',
     summary: { total: 7, ready: 7, autoFix: 0, manual: 0 },
+    contextRisks: [{ kind: 'instruction' }],
+    dependencyRiskCount: 0,
+    skillPackagesReady: true,
+    fullyReady: false,
   };
 
   const info = createShareInfo(report, {
@@ -60,6 +64,8 @@ test('includes target migration outcome without local details', () => {
   assert.match(info.url, /targetTotal=7/);
   assert.match(info.url, /targetAuto=0/);
   assert.match(info.url, /targetManual=0/);
+  assert.match(info.url, /targetContext=1/);
+  assert.match(info.url, /targetComplete=1/);
   assert.equal(info.url.includes('/Users/'), false);
 });
 
