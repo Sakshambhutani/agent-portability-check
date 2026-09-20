@@ -63,6 +63,7 @@ export const HARNESS_DEFINITIONS = {
 
   cursor: {
     label: 'Cursor',
+    cloudLabel: 'Cursor Cloud',
     commands: ['agent', 'cursor'],
     macApps: ['/Applications/Cursor.app', '~/Applications/Cursor.app'],
     windowsApps: [
@@ -117,6 +118,7 @@ export const HARNESS_DEFINITIONS = {
 
   copilot: {
     label: 'GitHub Copilot',
+    cloudLabel: 'GitHub Copilot Cloud Agent',
     commands: ['copilot'],
     vscodeExtensions: ['github.copilot', 'github.copilot-chat'],
     skillRoots: {
@@ -140,6 +142,7 @@ export const HARNESS_DEFINITIONS = {
     acceptedInstructionOwners: ['shared', 'copilot'],
     requireFolderNameMatch: true,
     fix: 'Move the canonical skill package to the interoperable .agents/skills location.',
+    cloud: true,
   },
 
   opencode: {
