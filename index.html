@@ -254,6 +254,7 @@
           <div class="target-group">
             <span class="group-name">Current</span>
             <button class="target" data-target="" data-runtime="local">My setup</button>
+            <button class="target" data-all="1" data-target="" data-runtime="local">All harnesses</button>
           </div>
           <div class="target-group">
             <span class="group-name">Harness</span>
@@ -429,6 +430,7 @@
 const params = new URLSearchParams(location.search);
 const ref = (params.get('ref') || '').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
 const wantsFix = params.get('fix') === '1';
+const initialAll = params.get('all') === '1';
 const team = (params.get('team') || '').replace(/[^A-Za-z0-9_-]/g,'').slice(0,40);
 const supportedTargets = ['claude','codex','cursor','gemini','copilot','opencode','roo'];
 const initialTarget = supportedTargets.includes(params.get('target')) ? params.get('target') : '';
@@ -462,10 +464,20 @@ const cursorMcpStatus = document.getElementById('cursorMcpStatus');
 const cursorHeader = document.getElementById('cursorHeader');
 const proofText = document.getElementById('proofText');
 const proofResultTitle = document.getElementById('proofResultTitle');
-let selectedTarget = initialTarget;
-let selectedRuntime = initialRuntime;
+let selectedTarget = initialAll ? '' : initialTarget;
+let selectedRuntime = initialAll ? 'local' : initialRuntime;
+let selectedAll = initialAll;
 
 const findings = {
+  all: {
+    tone: 'fix',
+    meta: 'One scan · all supported harnesses',
+    title: 'cross-harness matrix',
+    text: 'Checks every supported local harness plus Cursor Cloud and GitHub Copilot Cloud Agent in one run.',
+    action: 'Consolidated verification',
+    fix: 'Run one safe fix plan, then re-check every target surface',
+    summary: 'Checking all supported harnesses'
+  },
   current: {
     tone: 'fix',
     meta: 'Auto-fix available',
@@ -561,8 +573,8 @@ const findings = {
 function buildCommand() {
   return [
     'npx github:Sakshambhutani/agent-portability-check',
-    selectedTarget ? '--target ' + selectedTarget : '',
-    selectedRuntime === 'cloud' ? '--runtime cloud' : '',
+    selectedAll ? '--all' : selectedTarget ? '--target ' + selectedTarget : '',
+    !selectedAll && selectedRuntime === 'cloud' ? '--runtime cloud' : '',
     wantsFix ? '--fix' : '',
     ref ? '--ref ' + ref : '',
     team ? '--team ' + team : ''
@@ -571,18 +583,23 @@ function buildCommand() {
 
 function updateUI() {
   targetButtons.forEach(button => {
-    const isActive = button.dataset.target === selectedTarget && (button.dataset.runtime || 'local') === selectedRuntime;
+    const buttonAll = button.dataset.all === '1';
+    const isActive = buttonAll
+      ? selectedAll
+      : !selectedAll && button.dataset.target === selectedTarget && (button.dataset.runtime || 'local') === selectedRuntime;
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-pressed', String(isActive));
   });
 
   commandEl.textContent = buildCommand();
   copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy and run';
-  commandIntro.textContent = selectedTarget
-    ? 'Run a local check against ' + (selectedRuntime === 'cloud' ? cloudLabels[selectedTarget] : labels[selectedTarget]) + '.'
-    : 'Run the check locally. Nothing changes unless you approve it.';
+  commandIntro.textContent = selectedAll
+    ? 'Run one local scan across every supported harness and cloud surface.'
+    : selectedTarget
+      ? 'Run a local check against ' + (selectedRuntime === 'cloud' ? cloudLabels[selectedTarget] : labels[selectedTarget]) + '.'
+      : 'Run the check locally. Nothing changes unless you approve it.';
 
-  const selectedHarness = selectedTarget || '';
+  const selectedHarness = selectedAll ? '' : (selectedTarget || '');
   matrix.classList.toggle('is-filtered', Boolean(selectedHarness));
   matrix.querySelectorAll('[data-harness]').forEach(cell => {
     cell.classList.toggle('selected', cell.dataset.harness === selectedHarness);
@@ -590,7 +607,11 @@ function updateUI() {
 
   const isCloud = cloudTargets.has(selectedTarget) && selectedRuntime === 'cloud';
   const cloudFindingKey = selectedTarget === 'copilot' ? 'copilotCloud' : 'cursorCloud';
-  const finding = isCloud ? findings[cloudFindingKey] : findings[selectedTarget || 'current'];
+  const finding = selectedAll
+    ? findings.all
+    : isCloud
+      ? findings[cloudFindingKey]
+      : findings[selectedTarget || 'current'];
   matrixSummary.textContent = finding.summary;
   findingMeta.textContent = finding.meta;
   findingMeta.className = 'finding-meta ' + finding.tone;
@@ -602,7 +623,10 @@ function updateUI() {
   cursorSkillScore.textContent = selectedTarget === 'cursor' && isCloud ? '4 / 7' : '5 / 7';
   cursorMcpStatus.textContent = selectedTarget === 'cursor' && isCloud ? 'Cloud gap' : 'Manual';
   cursorHeader.textContent = selectedTarget === 'cursor' && isCloud ? 'Cursor Cloud' : 'Cursor';
-  if (selectedTarget) {
+  if (selectedAll) {
+    proofResultTitle.textContent = 'All harnesses verified';
+    proofText.textContent = 'Once every supported target passes its package check, generate one cross-harness result and share it.';
+  } else if (selectedTarget) {
     const targetLabel = isCloud ? cloudLabels[selectedTarget] : labels[selectedTarget];
     proofResultTitle.textContent = '7 / 7 ready for ' + targetLabel;
     proofText.textContent = 'Once the target check passes, generate a shareable result or add a compatibility badge to your README.';
@@ -612,19 +636,30 @@ function updateUI() {
   }
 
   const url = new URL(location.href);
-  if (selectedTarget) url.searchParams.set('target', selectedTarget);
-  else url.searchParams.delete('target');
-  if (selectedRuntime === 'cloud') url.searchParams.set('runtime','cloud');
-  else url.searchParams.delete('runtime');
+  if (selectedAll) {
+    url.searchParams.set('all', '1');
+    url.searchParams.delete('target');
+    url.searchParams.delete('runtime');
+  } else {
+    url.searchParams.delete('all');
+    if (selectedTarget) url.searchParams.set('target', selectedTarget);
+    else url.searchParams.delete('target');
+    if (selectedRuntime === 'cloud') url.searchParams.set('runtime','cloud');
+    else url.searchParams.delete('runtime');
+  }
   history.replaceState({}, '', url);
 }
 
 targetButtons.forEach(button => {
   button.addEventListener('click', () => {
-    selectedTarget = button.dataset.target;
-    selectedRuntime = button.dataset.runtime || 'local';
+    selectedAll = button.dataset.all === '1';
+    selectedTarget = selectedAll ? '' : button.dataset.target;
+    selectedRuntime = selectedAll ? 'local' : (button.dataset.runtime || 'local');
     updateUI();
-    track('apc_target_selected', { target_agent: selectedTarget || 'current', target_runtime: selectedRuntime });
+    track('apc_target_selected', {
+      target_agent: selectedAll ? 'all' : (selectedTarget || 'current'),
+      target_runtime: selectedAll ? 'all' : selectedRuntime
+    });
   });
 });
 
@@ -686,13 +721,19 @@ async function track(event, extra={}) {
   } catch {}
 }
 
-track('apc_landing_viewed', { target_agent:selectedTarget || 'current', target_runtime:selectedRuntime });
+track('apc_landing_viewed', {
+  target_agent: selectedAll ? 'all' : (selectedTarget || 'current'),
+  target_runtime: selectedAll ? 'all' : selectedRuntime
+});
 
 copyEl.addEventListener('click', async () => {
   await navigator.clipboard.writeText(buildCommand());
   copyEl.textContent = 'Copied — paste in Terminal';
   window.setTimeout(() => { copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy and run'; }, 2200);
-  track('apc_command_copied', { target_agent:selectedTarget || 'current', target_runtime:selectedRuntime });
+  track('apc_command_copied', {
+    target_agent: selectedAll ? 'all' : (selectedTarget || 'current'),
+    target_runtime: selectedAll ? 'all' : selectedRuntime
+  });
 });
 
 updateUI();
