@@ -9,6 +9,7 @@ const KNOWN_COMMANDS = new Set([
   'git','gh','jq','curl','wget','make',
   'docker','kubectl','helm','terraform',
   'aws','gcloud','az','go','cargo','rustc','eslint','tsc','playwright',
+  'vercel','supabase','agent-browser','wrangler','netlify','firebase','railway','flyctl',
   'bash','sh','zsh',
   'gemini','copilot','opencode',
 ]);
@@ -16,6 +17,7 @@ const KNOWN_COMMANDS = new Set([
 const COMMON_ENV = new Set([
   'HOME','PATH','PWD','OLDPWD','SHELL','USER','LOGNAME','TMP','TEMP','TMPDIR',
   'CI','TERM','LANG','LC_ALL','NODE_ENV',
+  'CLAUDE_PLUGIN_ROOT','CODEX_PLUGIN_ROOT','CLAUDE_PROJECT_DIR',
 ]);
 
 export function defaultCommandCheck(command) {
@@ -46,19 +48,48 @@ function commandFromLine(line) {
   return commands;
 }
 
-export function extractCommands(content) {
-  const commands = new Set();
+function nearbyContext(content, index, radius = 220) {
+  const start = Math.max(0, Number(index || 0) - radius);
+  return content.slice(start, Number(index || 0));
+}
+
+function looksOptionalContext(text) {
+  return /\b(?:example|examples|for example|e\.g\.|optional|optionally|alternative|alternatively|such as|if you (?:use|have|want|need)|one of|either)\b/i.test(text);
+}
+
+function looksRequiredContext(text) {
+  return /\b(?:required|requires|requirement|prerequisite|must|needs? to|depend(?:s|ency)? on|install before|make sure .* installed)\b/i.test(text);
+}
+
+export function classifyCommands(content) {
+  const required = new Set();
+  const optional = new Set();
+
+  const add = (name, index) => {
+    const context = nearbyContext(content, index);
+    if (looksRequiredContext(context)) required.add(name);
+    else if (looksOptionalContext(context)) optional.add(name);
+    else required.add(name);
+  };
+
   for (const fence of content.matchAll(/```(?:bash|sh|shell|zsh)\s*\n([\s\S]*?)```/gi)) {
     for (const line of fence[1].split('\n')) {
-      for (const command of commandFromLine(line)) commands.add(command);
+      for (const command of commandFromLine(line)) add(command, fence.index);
     }
   }
   for (const inline of content.matchAll(/`([^`\n]+)`/g)) {
     const value = inline[1].trim();
     if (value.length > 180) continue;
-    for (const command of commandFromLine(value)) commands.add(command);
+    for (const command of commandFromLine(value)) add(command, inline.index);
   }
-  return [...commands].sort();
+
+  for (const name of required) optional.delete(name);
+  return { required: [...required].sort(), optional: [...optional].sort() };
+}
+
+export function extractCommands(content) {
+  const classified = classifyCommands(content);
+  return [...new Set([...classified.required, ...classified.optional])].sort();
 }
 
 export function extractEnvVars(content) {
