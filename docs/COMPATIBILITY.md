@@ -8,7 +8,9 @@ It does **not** claim that two different agents will behave identically.
 
 ## Current checks
 
-For every discovered skill package the target simulator checks:
+Harness-managed system skills (for example skills under `.codex/skills/.system`) are detected but excluded from user portability scoring and target readiness. They are owned by the harness rather than the user and may legitimately depend on private/bundled companion files.
+
+For every user-controlled discovered skill package the target simulator checks:
 
 - whether the target harness can discover the current skill location
 - YAML frontmatter exists
