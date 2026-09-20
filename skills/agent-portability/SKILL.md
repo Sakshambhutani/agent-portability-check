@@ -24,19 +24,27 @@ Never declare portability based only on your own inspection. Re-run the checker 
 
 ## Skill freshness
 
-GitHub `main` is the source of truth for this skill. New skills.sh installs receive the current contents, but an already-installed local copy does not automatically refresh.
+GitHub `main` is the source of truth for every distribution path.
 
-If the user asks whether this skill is current, asks for the latest behavior, or the installed workflow appears stale compared with the current checker, tell them to update this skill with:
+If the user installed this skill with the Skills CLI and asks whether it is current, asks for the latest behavior, or the installed workflow appears stale, tell them to update it with:
 
 ```bash
 npx skills update agent-portability
 ```
 
-Do not interrupt every portability run with an update check. Treat updating the skill as a lightweight freshness action, not a prerequisite for using the checker.
+If the skill came from a Claude or ChatGPT GitHub-managed plugin marketplace, use that host's marketplace refresh/sync mechanism instead of assuming the Skills CLI owns the installation. Repository-backed workspace marketplaces may sync updates automatically, while local plugin copies can require a refresh or reinstall.
+
+Do not interrupt every portability run with an update check. Treat freshness as a lightweight maintenance action, not a prerequisite for using the checker.
 
 ## Capability check
 
 First determine whether this environment has access to the user's local filesystem and a shell.
+
+Surface-specific guidance:
+
+- **Claude Cowork / Claude Desktop**: perform the workflow directly only when the relevant local folder is connected and the environment can run shell commands. A cloud Cowork session may lose local-file access when Claude Desktop is not available, so verify access before scanning.
+- **ChatGPT Work / Codex / ChatGPT Desktop**: perform the workflow directly when the surface exposes the project filesystem and shell. A normal web chat may have the skill installed but still lack access to the user's laptop.
+- **Claude or ChatGPT without local execution**: use the skill as the orchestration layer, but ask the user to run the private checker locally and return the JSON/output. Never imply that the local machine was inspected remotely.
 
 If local filesystem/shell access is available, perform the workflow directly.
 

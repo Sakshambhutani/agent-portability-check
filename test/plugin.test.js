@@ -35,7 +35,9 @@ test('repository marketplace points at the portable plugin root', () => {
   );
   assert.equal(marketplace.plugins.length, 1);
   assert.equal(marketplace.plugins[0].name, 'agent-portability');
-  assert.equal(marketplace.plugins[0].source.path, '.');
+  assert.equal(marketplace.name, 'agent-labs');
+  assert.equal(marketplace.plugins[0].source.path, './');
+  assert.equal(marketplace.plugins[0].policy.installation, 'AVAILABLE');
 });
 
 test('CLI exposes local-only no-publish mode', () => {
@@ -45,4 +47,47 @@ test('CLI exposes local-only no-publish mode', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /--no-publish/);
   assert.match(result.stdout, /--all/);
+});
+
+
+test('Claude marketplace installs the same root plugin used by Cowork and Claude Code', () => {
+  const marketplace = JSON.parse(
+    fs.readFileSync(path.join(root, '.claude-plugin/marketplace.json'), 'utf8')
+  );
+  assert.equal(marketplace.$schema, 'https://anthropic.com/claude-code/marketplace.schema.json');
+  assert.equal(marketplace.name, 'agent-labs');
+  assert.equal(marketplace.plugins.length, 1);
+  assert.equal(marketplace.plugins[0].name, 'agent-portability');
+  assert.equal(marketplace.plugins[0].source, './');
+  assert.equal(
+    marketplace.plugins[0].version,
+    JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin/plugin.json'), 'utf8')).version
+  );
+});
+
+test('ChatGPT and Codex compatibility manifest points to bundled skills and public listing metadata', () => {
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(root, '.codex-plugin/plugin.json'), 'utf8')
+  );
+  const portable = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8'));
+
+  assert.equal(manifest.name, 'agent-portability');
+  assert.equal(manifest.version, portable.version);
+  assert.equal(manifest.skills, './skills/');
+  assert.equal(manifest.interface.displayName, 'Agent Portability');
+  assert.equal(manifest.interface.category, 'Developer Tools');
+  assert.match(manifest.interface.longDescription, /Claude Code/);
+  assert.match(manifest.interface.longDescription, /GitHub Copilot/);
+  assert.ok(manifest.interface.shortDescription.length <= 30);
+  assert.ok(manifest.interface.displayName.length <= 30);
+  assert.ok(manifest.interface.capabilities.length > 0);
+});
+
+test('portable manifest carries OpenAI listing metadata without bundling an MCP server', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8'));
+  const openai = manifest.extensions?.['com.openai'];
+  assert.equal(openai.interface.displayName, 'Agent Portability');
+  assert.equal(openai.interface.category, 'Developer Tools');
+  assert.equal(fs.existsSync(path.join(root, 'mcp.json')), false);
+  assert.equal(fs.existsSync(path.join(root, '.mcp.json')), false);
 });

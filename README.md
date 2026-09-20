@@ -28,10 +28,16 @@ or:
 Check whether my skills work across Claude, Codex, Cursor, Gemini, Copilot, OpenCode, and Roo and fix what you safely can.
 ```
 
-The repository is also packaged as:
-- a portable Agent Plugin via `plugin.json` for ChatGPT/Codex plugin packaging;
-- a Claude Code plugin via `.claude-plugin/plugin.json`;
-- a repository marketplace entry under `.agents/plugins/marketplace.json`.
+The repository is also packaged natively for Claude and OpenAI surfaces:
+- a portable Agent Plugin via `plugin.json` for ChatGPT/Codex;
+- an OpenAI compatibility manifest via `.codex-plugin/plugin.json`;
+- an Agent Labs repository marketplace via `.agents/plugins/marketplace.json`;
+- a Claude plugin via `.claude-plugin/plugin.json`;
+- an Agent Labs Claude marketplace via `.claude-plugin/marketplace.json`.
+
+For **Claude / Cowork**, add the GitHub repository as a plugin marketplace and install **Agent Portability**. For an eligible **ChatGPT workspace**, import the repository marketplace from GitHub in Workspace settings → Plugins. Both distributions use the same canonical `skills/agent-portability/SKILL.md`.
+
+See [Native Claude and ChatGPT installation](docs/NATIVE_INSTALL.md) for exact setup and runtime behavior.
 
 Claude Code can test the repository directly:
 
@@ -42,7 +48,7 @@ claude --plugin-dir ./agent-portability-check
 
 The plugin skill is then namespaced in Claude Code as `/agent-portability:agent-portability`.
 
-Public directory discovery still requires the normal provider review/submission step. The repository is packaged so the same skill can be submitted without creating a separate implementation for each harness.
+The repository marketplaces are ready for private/repository distribution. Public directory listing is a separate provider submission/review step. The same canonical skill is used across skills.sh, Claude/Cowork, ChatGPT, and Codex.
 
 Important runtime distinction:
 
