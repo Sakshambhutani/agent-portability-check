@@ -84,6 +84,7 @@ test('landing page frames portability across harnesses and runtimes', () => {
   assert.match(html, /data-target="copilot" data-runtime="cloud"/);
   assert.match(html, /data-target="opencode" data-runtime="local"/);
   assert.match(html, /data-target="roo" data-runtime="local"/);
+  assert.match(html, /data-all="1"/);
   assert.match(html, /Cursor Cloud/);
   assert.match(html, /Copilot Cloud Agent/);
   assert.match(html, />Understand</);
@@ -139,6 +140,28 @@ test('result pages render new harness targets and cloud labels', async () => {
     for (const [index, script] of scriptsFromHtml(html).entries()) {
       checkJs(script, 'new harness result script ' + target + ' ' + runtime + ' #' + index);
     }
+  }
+});
+
+
+test('all-harness result page renders coarse target matrix and preserves all-mode CTA', async () => {
+  const html = await render(resultHandler, {
+    ref:'all-mode',
+    score:'na', total:'2', portable:'0', ready:'2', shared:'2', drift:'0',
+    agents:'codex',
+    mode:'all',
+    allReady:'2',
+    allTotal:'3',
+    allComplete:'0',
+    all:'codex:2:2:0:0:0:0:1,claude:2:2:0:0:1:0:1,cursor-cloud:0:2:0:2:1:1:0',
+  });
+  assert.match(html, /ALL-HARNESS CHECK/);
+  assert.match(html, /2 of 3 supported harness surfaces/i);
+  assert.match(html, /Cursor Cloud/);
+  assert.match(html, /--all --fix/);
+  assert.doesNotMatch(html, /id="linkedin"/);
+  for (const [index, script] of scriptsFromHtml(html).entries()) {
+    checkJs(script, 'all-harness result script ' + index);
   }
 });
 
