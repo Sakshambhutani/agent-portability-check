@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-portability",
+  "version": "0.1.0",
+  "description": "Diagnose and repair AI agent portability across Claude Code, Codex, Cursor, and Cursor Cloud.",
+  "author": {
+    "name": "Saksham Bhutani",
+    "url": "https://github.com/Sakshambhutani"
+  },
+  "homepage": "https://agent-portability-check.vercel.app",
+  "repository": "https://github.com/Sakshambhutani/agent-portability-check",
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "claude-code",
+    "codex",
+    "cursor",
+    "portability",
+    "migration"
+  ]
+}
