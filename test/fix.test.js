@@ -132,3 +132,25 @@ test('manual conflicts explain the exact invalid package issue', () => {
   assert.match(plan.conflicts[0].reason, /scripts\/missing\.sh/);
   assert.match(plan.conflicts[0].reason, /\.codex\/skills\/broken\/SKILL\.md/);
 });
+
+
+test('native open-agent harness skills canonicalize into shared .agents skills', () => {
+  const cases = [
+    ['.gemini/skills/review/SKILL.md', 'gemini'],
+    ['.copilot/skills/review/SKILL.md', 'copilot'],
+    ['.config/opencode/skills/review/SKILL.md', 'opencode'],
+    ['.roo/skills/review/SKILL.md', 'roo'],
+  ];
+
+  for (const [rel, installed] of cases) {
+    const { cwd, home } = fixture();
+    write(path.join(home, rel), '---\nname: review\ndescription: Review code\n---\nReview');
+    const before = scan({ cwd, home, installedHarnesses: [installed] });
+    const plan = planPortableReadyFix(before, { cwd, home });
+    assert.equal(plan.copyPlans.length, 1, installed);
+    applyPortableReadyFix(plan);
+    assert.equal(fs.existsSync(path.join(home, '.agents/skills/review/SKILL.md')), true, installed);
+    const after = scan({ cwd, home, installedHarnesses: [installed] });
+    assert.equal(after.global.portableReadyPercent, 100, installed);
+  }
+});
