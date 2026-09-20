@@ -292,6 +292,13 @@ function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } =
   console.log(`Auto-fix             ${result.summary.autoFix}`);
   console.log(`Manual attention     ${result.summary.manual}`);
   console.log(`Package-ready        ${result.readyPercent === null ? 'N/A' : `${result.readyPercent}%`}`);
+  if (result.summary.dimensions) {
+    console.log(`Discoverable         ${result.summary.dimensions.discoverable} / ${result.summary.total}`);
+    console.log(`Package complete     ${result.summary.dimensions.packageComplete} / ${result.summary.total}`);
+    console.log(`Dependencies ready   ${result.summary.dimensions.dependenciesAvailable} / ${result.summary.total}`);
+    console.log(`Authentication tested ${result.summary.dimensions.authenticationTested} / ${result.summary.total}`);
+    console.log(`Execution tested     ${result.summary.dimensions.executionTested} / ${result.summary.total}`);
+  }
   console.log(`Dependency blockers ${result.dependencyRiskCount || 0}`);
   console.log(`Context gaps         ${result.contextRisks?.length || 0}`);
   console.log(`Runtime              ${result.runtime || 'local'}`);
@@ -307,6 +314,9 @@ function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } =
         : skill.status.toUpperCase();
       console.log(`${compatibilityIcon(skill.status)} ${skill.scope === 'project' ? '[project] ' : ''}${skill.name} — ${label}`);
       console.log(`  ${skill.reason}`);
+      if (skill.source?.type === 'plugin') {
+        console.log(`  Source: installed ${skill.source.pluginHost || skill.source.owner} plugin ${skill.source.pluginId || ''}`.trimEnd());
+      }
       if (skill.fix) console.log(`  Fix: ${skill.fix}`);
     }
   }
