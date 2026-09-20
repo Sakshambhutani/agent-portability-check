@@ -6,6 +6,30 @@ Agent Portability Check answers a narrow migration question:
 
 It does **not** claim that two different agents will behave identically.
 
+## Evidence model
+
+A portability result separates what the checker can prove structurally from what still requires runtime evidence:
+
+- **Discoverable** — whether the target harness can find the skill from a supported location or installed plugin source.
+- **Package complete** — whether metadata and referenced companion files are structurally available.
+- **Dependencies available** — whether required CLI/interpreter references, environment-variable names, and MCP server configuration are present.
+- **Authentication** — reported as **not tested** unless a host explicitly verifies the credential/session.
+- **Execution** — reported as **not tested** unless a representative non-destructive workflow is actually executed in the target.
+
+A discovery adapter, symlink, or copied `SKILL.md` is not evidence of authentication or runtime success.
+
+## Installed plugin skills
+
+The scanner performs best-effort discovery of installed plugin-provided skills in addition to standard skill roots.
+
+For Claude, it reads local installed-plugin records when present (for example under `~/.claude/plugins/installed_plugins.json`) and scans the plugin's declared `installPath/skills` directory. Project/local plugin scope is respected using the registry-declared scope and project path.
+
+For Codex, it reads enabled plugin entries from the local Codex config and resolves locally cached plugin skills under the Codex plugin cache.
+
+Plugin-provided skills may rely on files outside their own skill directory. These **plugin-root dependencies** can work correctly in the source host while making the skill incomplete if copied by itself to another harness. The safe-fix planner therefore refuses to canonicalize such a skill as a standalone shared copy without adaptation.
+
+Plugin installation layouts are host-managed implementation details and may evolve. These checks are deliberately best-effort and evidence-backed rather than a claim that every hidden/provider-managed skill source is discoverable.
+
 ## Current checks
 
 Harness-managed system skills (for example skills under `.codex/skills/.system`) are detected but excluded from user portability scoring and target readiness. They are owned by the harness rather than the user and may legitimately depend on private/bundled companion files.
@@ -18,9 +42,11 @@ For every user-controlled discovered skill package the target simulator checks:
 - `description` exists
 - folder name matches skill name
 - local companion files referenced under `scripts/`, `references/`, or `assets/` exist
+- anchor/query suffixes and URI-style links are not mistaken for missing local files
+- plugin-root companion-file dependencies are surfaced separately
 - same-name copies have not drifted
-- referenced local CLI/interpreter availability
-- required environment variable presence (names only; values are never uploaded)
+- required local CLI/interpreter availability, while example/optional commands remain non-blocking
+- required environment variable presence (names only; values are never uploaded), while optional examples remain non-blocking
 - explicit MCP server references against the selected target's config
 - local-only versus repository-visible skills for supported cloud runtimes
 - harness-specific instruction gaps such as `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, Copilot instructions, Cursor rules, OpenCode instructions, and Roo rules
@@ -141,9 +167,13 @@ Roo-specific rules and mode-specific rules are surfaced separately rather than f
 Primary source:
 - https://roocodeinc.github.io/Roo-Code/features/skills/
 
+## Same-machine vs cross-machine migration
+
+A local dependency can be evidence for a same-machine harness migration but is not transferable proof for a different machine, teammate, or cloud runtime. The skill's orchestration layer therefore distinguishes these migration modes and treats machine-local installs, secrets, authentication, plugin availability, and paths as migration requirements when the destination is elsewhere.
+
 ## What is not guaranteed
 
-The checker validates discoverability and several concrete dependency signals, but a **Ready** result can still fail at runtime. It does not validate:
+The checker validates discoverability and several concrete dependency signals, but a **Ready** package result can still fail at runtime. Unless explicitly executed by the host, authentication and representative workflow execution remain marked as **not tested**. The deterministic checker does not validate:
 
 - whether a configured MCP server actually works after connection
 - secret values or credential validity
