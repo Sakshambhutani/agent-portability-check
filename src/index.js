@@ -31,6 +31,7 @@ function parseArgs(argv) {
     output: '.agent-portability',
     json: false,
     write: true,
+    publish: true,
     analytics: null,
     ref: '',
     fix: false,
@@ -52,6 +53,7 @@ function parseArgs(argv) {
     else if ((a === '--output' || a === '-o') && argv[i + 1]) args.output = argv[++i];
     else if (a === '--json') args.json = true;
     else if (a === '--no-write') args.write = false;
+    else if (a === '--no-publish') args.publish = false;
     else if (a === '--analytics' && argv[i + 1]) args.analytics = argv[++i].toLowerCase();
     else if (a === '--ref' && argv[i + 1]) { args.ref = normalizeReferralId(argv[++i]); args.refProvided = true; }
     else if (a === '--target' && argv[i + 1]) { args.target = argv[++i].toLowerCase(); args.targetProvided = true; }
@@ -69,7 +71,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --runtime <mode>    local (default) or cloud; cloud currently means Cursor Cloud\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --no-publish       Do not create a public result URL\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --runtime <mode>    local (default) or cloud; cloud currently means Cursor Cloud\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
 }
 
 async function ask(prompt) {
@@ -458,7 +460,9 @@ async function main() {
     }
   }
 
-  const shareInfo = await publishShareResult(report, { targetCompatibility: targetReport, teamCode: args.team });
+  const shareInfo = args.publish
+    ? await publishShareResult(report, { targetCompatibility: targetReport, teamCode: args.team })
+    : null;
 
   let files = null;
 

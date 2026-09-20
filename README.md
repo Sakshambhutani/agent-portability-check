@@ -6,6 +6,50 @@ Agent Portability Check covers cross-harness compatibility and runtime changes. 
 
 Public site: https://agent-portability-check.vercel.app
 
+## Use it inside Claude, Codex, or ChatGPT
+
+The CLI is the deterministic verifier. The `agent-portability` skill lets an AI harness inspect the report, investigate ambiguous blockers, make evidence-backed repairs, and then re-run the checker.
+
+Install the skill with the Skills CLI:
+
+```bash
+npx skills add https://github.com/Sakshambhutani/agent-portability-check --skill agent-portability
+```
+
+Then ask your harness naturally:
+
+```text
+Make my agent setup portable to Claude.
+```
+
+or:
+
+```text
+Check whether my skills work across Claude, Codex, and Cursor and fix what you safely can.
+```
+
+The repository is also packaged as:
+- a portable Agent Plugin via `plugin.json` for ChatGPT/Codex plugin packaging;
+- a Claude Code plugin via `.claude-plugin/plugin.json`;
+- a repository marketplace entry under `.agents/plugins/marketplace.json`.
+
+Claude Code can test the repository directly:
+
+```bash
+git clone https://github.com/Sakshambhutani/agent-portability-check.git
+claude --plugin-dir ./agent-portability-check
+```
+
+The plugin skill is then namespaced in Claude Code as `/agent-portability:agent-portability`.
+
+Public directory discovery still requires the normal provider review/submission step. The repository is packaged so the same skill can be submitted without creating a separate implementation for each harness.
+
+Important runtime distinction:
+
+- In **Codex / Claude Code / a local agent runtime** with filesystem + shell access, the skill can scan and repair the machine directly.
+- In a **ChatGPT surface without access to the user's local filesystem**, the skill must not pretend it changed the laptop. It can guide the user to run the local checker and interpret the private JSON result.
+- Intermediate intelligent scans use `--no-publish`; the final verified result can create the share/team page.
+
 ## 10-second compatibility check
 
 ```bash
@@ -174,7 +218,7 @@ Every scan produces:
 - a local JSON report
 - a referral-aware public diagnostic URL
 
-Before achievement, the page is intentionally a **private diagnostic**: it leads with fixing and does not show social-share or Team Compare controls.
+Before achievement, the page is a **diagnostic**: it leads with fixing, keeps public social-share controls locked, but still allows Team Compare so multiple teammates can run the same diagnostic.
 
 After an achievement, the public result page can generate:
 
@@ -331,6 +375,7 @@ The public/CLI flow can emit anonymous events such as:
     --ref <id>          Attribute a referred scan
     --json              Print report JSON
     --no-write          Don't create report files
+    --no-publish        Don't create a public result URL
     --analytics <mode>  on | off | status
 -h, --help              Show help
 ```
