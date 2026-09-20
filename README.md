@@ -99,7 +99,11 @@ Low-readiness result pages lead with **Copy fix command**.
 Social sharing and the README badge become primary actions only after a defensible achievement:
 
 - **100% portable-ready**, or
-- **all skill packages ready for the selected target**
+- **all user-controlled skill packages ready for the selected target**
+
+Harness-managed skills under directories such as `.codex/skills/.system` are reported separately and excluded from readiness. They belong to the harness, so a user should not fail portability because a bundled system skill references files that are not portable.
+
+Target achievements are intentionally narrow: **skill packages ready for <target>**. Harness-specific instruction/context gaps can still be shown separately without suppressing a genuine 100% skill-package result.
 
 ## What "ready" means
 
@@ -192,10 +196,12 @@ Example:
 
 ## Save result / Team Compare
 
-After a successful result, an optional identified flow can appear:
+Team Compare is available from **any diagnostic**, not only a trophy. This is a separate viral loop from public social sharing.
+
+The identified flow appears only after the user explicitly chooses to save/group results:
 
 ```text
-achievement
+diagnostic or achievement
   ↓
 Save result / Compare with team
   ↓
@@ -208,7 +214,7 @@ teammates run local scans
 summary leaderboard
 ```
 
-The scan itself remains account-free and local. Identity is only requested after an explicit click.
+The scan itself remains account-free and local. Identity is only requested after an explicit click. A low-readiness user can therefore compare the same diagnostic across teammates even when LinkedIn/X sharing is still locked.
 
 Team Compare uses Supabase and is hidden unless the deployment has all required Supabase environment variables and the migration in [docs/TEAM_COMPARE.md](docs/TEAM_COMPARE.md) has been applied.
 

@@ -37,7 +37,7 @@ export function buildSharePayload(report, {
     targetContext: targetCompatibility?.contextRisks?.length || 0,
     targetDeps: targetCompatibility?.dependencyRiskCount || 0,
     runtime: targetCompatibility?.runtime || 'local',
-    targetComplete: Boolean(targetCompatibility?.fullyReady),
+    targetComplete: Boolean(targetCompatibility?.skillPackagesReady ?? targetCompatibility?.fullyReady),
     team: normalizeTeamCode(teamCode) || null,
   };
 }

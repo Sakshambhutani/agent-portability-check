@@ -62,7 +62,8 @@ test('achievement state updates after a successful rescan', () => {
 test('target compatibility achievement takes precedence', () => {
   assert.equal(
     isAchievement(report(2, 7), {
-      fullyReady: true,
+      skillPackagesReady: true,
+      fullyReady: false,
       summary: { ready: 7, total: 7, autoFix: 0, manual: 0 },
     }),
     true,

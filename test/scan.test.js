@@ -129,3 +129,19 @@ test('report never stores instruction content', () => {
   const r = scan({ cwd, home, installedHarnesses: ['codex'] });
   assert.equal(JSON.stringify(r).includes(secret), false);
 });
+
+
+test('harness-managed .system skills do not block user portability readiness', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.codex/skills/.system/skill-creator/SKILL.md'), '---\nname: skill-creator\ndescription: Managed\n---\nRun references/missing.md');
+  write(path.join(home, '.agents/skills/review/SKILL.md'), validSkill('review'));
+
+  const r = scan({ cwd, home, installedHarnesses: ['codex'] });
+
+  assert.equal(r.global.totalSkills, 1);
+  assert.equal(r.global.portableReadySkills, 1);
+  assert.equal(r.global.portableReadyPercent, 100);
+  assert.equal(r.global.managedSkillCount, 1);
+  assert.equal(r.global.managedSkills[0].name, 'skill-creator');
+  assert.ok(r.findings.some(f => /excluded from portability readiness/i.test(f.text)));
+});

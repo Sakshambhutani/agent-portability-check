@@ -111,30 +111,33 @@ test('result page client script parses in before and trophy states', async () =>
 
 
 
-test('sharing and team compare unlock only on achievement', async () => {
+test('team compare is always available while social sharing stays achievement-gated', async () => {
   const before = await render(resultHandler, {
     ref:'before-gating',
-    score:'na', total:'7', portable:'0', ready:'4', shared:'4', drift:'0',
-    agents:'codex', target:'claude', targetReady:'4', targetTotal:'7',
-    targetAuto:'0', targetManual:'3', targetContext:'0', targetDeps:'0',
+    score:'na', total:'3', portable:'0', ready:'2', shared:'2', drift:'0',
+    agents:'codex', target:'claude', targetReady:'2', targetTotal:'3',
+    targetAuto:'0', targetManual:'1', targetContext:'1', targetDeps:'0',
     runtime:'local', targetComplete:'0',
   });
-  assert.match(before, /private diagnostic/i);
+  assert.match(before, /This is your diagnostic/i);
   assert.match(before, /Copy diagnostic link/);
   assert.doesNotMatch(before, /id="linkedin"/);
-  assert.doesNotMatch(before, /id="teamAction"/);
+  assert.match(before, /id="teamAction"/);
+  assert.match(before, /id="identityPanel"/);
+  assert.match(before, /Compare with your team/);
 
   const trophy = await render(resultHandler, {
     ref:'trophy-gating',
-    score:'na', total:'7', portable:'0', ready:'7', shared:'7', drift:'0',
-    agents:'codex', target:'claude', targetReady:'7', targetTotal:'7',
-    targetAuto:'0', targetManual:'0', targetContext:'0', targetDeps:'0',
+    score:'na', total:'3', portable:'0', ready:'3', shared:'3', drift:'0',
+    agents:'codex', target:'claude', targetReady:'3', targetTotal:'3',
+    targetAuto:'0', targetManual:'0', targetContext:'1', targetDeps:'0',
     runtime:'local', targetComplete:'1',
   });
   assert.match(trophy, /id="linkedin"/);
   assert.match(trophy, /Challenge a teammate/);
   assert.match(trophy, /id="teamAction"/);
-  assert.match(trophy, /id="identityPanel"/);
+  assert.match(trophy, /3 skill packages are discoverable/i);
+  assert.match(trophy, /1 context gap/i);
   assert.match(trophy, /Save result \/ Compare team/);
 });
 

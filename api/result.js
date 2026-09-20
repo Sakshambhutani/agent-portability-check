@@ -151,11 +151,10 @@ export default async function handler(req, res) {
     targetReady === targetTotal &&
     targetAuto === 0 &&
     targetManual === 0 &&
-    targetContext === 0 &&
     targetDeps === 0 &&
     (source.targetComplete === '1' || source.targetComplete === true)
   );
-  const shareAchievement = targetComplete || portableReady;
+  const shareAchievement = target ? targetComplete : portableReady;
 
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const origin = `https://${req.headers.host}`;
@@ -178,7 +177,7 @@ export default async function handler(req, res) {
   ].filter(Boolean).join(' ');
 
   const title = targetComplete
-    ? `My AI setup is ready for ${targetLabel}`
+    ? `My AI skills are ready for ${targetLabel}`
     : portableReady
       ? 'My AI setup is 100% portable-ready'
       : target
@@ -186,7 +185,7 @@ export default async function handler(req, res) {
         : `${ready}/${total} AI skills portable-ready`;
 
   const description = targetComplete
-    ? `All ${targetTotal} skills are discoverable and structurally ready for ${targetLabel}.`
+    ? `All ${targetTotal} skill packages are discoverable and structurally ready for ${targetLabel}.${targetContext ? ` ${targetContext} context gap${targetContext === 1 ? '' : 's'} still shown separately.` : ''}`
     : portableReady
       ? `${ready}/${total} global skills are in shared format with no drift.`
       : target
@@ -216,7 +215,7 @@ export default async function handler(req, res) {
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
 
   const shareSentence = targetComplete
-    ? `I got all ${targetTotal} of my AI skills, dependencies, and context ready for ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}.`
+    ? `I got all ${targetTotal} of my AI skill packages ready for ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}.${targetContext ? ` The checker still flags ${targetContext} separate context gap${targetContext === 1 ? '' : 's'}.` : ''}`
     : `I made my AI setup 100% portable-ready. ${ready}/${total} skills are now in shared format.`;
 
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareSentence + ' Check yours:')}&url=${encodeURIComponent(canonical)}`;
@@ -234,7 +233,7 @@ Result link will be included when you copy.`;
       : `${ready} / ${total}`;
 
   const heroLabel = target
-    ? `ready for ${targetLabel}`
+    ? `skill packages ready for ${targetLabel}`
     : portableReady
       ? 'PORTABLE-READY'
       : 'skills portable-ready';
@@ -333,11 +332,25 @@ Result link will be included when you copy.`;
         <a id="check" class="primary" href="${esc(checkUrl)}">Challenge teammate →</a>
       </div>
 
+
+    ` : `
+      <div class="insight">
+        <strong>This is your diagnostic.</strong><br>
+        The CLI can safely fix location/discovery issues. Team Compare is available now; public social sharing unlocks after a portable-ready or target-ready achievement.
+      </div>
+      <div class="copybox" id="fixcommand">${esc(fixCommand)}</div>
+      <div class="actions">
+        <button id="copyFix" class="primary">Copy fix command</button>
+        <button id="copy" class="secondary">Copy diagnostic link</button>
+      </div>
+      <p class="muted" id="fixhint" style="margin-top:12px">Paste the copied command into Terminal. The CLI previews changes before applying them.</p>
+    `}
+
       <div class="identity">
         <h2>Compare with your team</h2>
-        <p class="muted">Keep the individual scan account-free. Sign in only if you want to save this achievement and compare results with teammates.</p>
+        <p class="muted">Keep the individual scan account-free. Compare the same diagnostic across your team; sign in only when you want to save and group results.</p>
         <div class="actions">
-          <button id="teamAction" class="secondary hidden">Save result / Compare team</button>
+          <button id="teamAction" class="secondary">Save result / Compare team</button>
         </div>
       </div>
 
@@ -378,18 +391,6 @@ Result link will be included when you copy.`;
 
         <div id="identityStatus" class="identity-status"></div>
       </div>
-    ` : `
-      <div class="insight">
-        <strong>This is your private diagnostic.</strong><br>
-        The CLI can safely fix location/discovery issues. Sharing actions unlock after you reach a portable-ready or target-ready achievement.
-      </div>
-      <div class="copybox" id="fixcommand">${esc(fixCommand)}</div>
-      <div class="actions">
-        <button id="copyFix" class="primary">Copy fix command</button>
-        <button id="copy" class="secondary">Copy diagnostic link</button>
-      </div>
-      <p class="muted" id="fixhint" style="margin-top:12px">Paste the copied command into Terminal. The CLI previews changes before applying them.</p>
-    `}
   </div>
 </div>
 <script>
@@ -514,10 +515,14 @@ async function setupIdentity() {
   try {
     const configResponse = await fetch('/api/public-config');
     const config = await configResponse.json();
-    if (!config.configured) return;
+    if (!config.configured) {
+      teamActionEl.textContent = 'Team Compare needs deployment setup';
+      teamActionEl.disabled = true;
+      document.getElementById('identityStatus').textContent = 'Team Compare is not configured on this deployment yet.';
+      return;
+    }
 
     identityConfigured = true;
-    teamActionEl.classList.remove('hidden');
     if (config.githubEnabled) document.getElementById('identityGithubLogin')?.classList.remove('hidden');
     const module = await import('https://esm.sh/@supabase/supabase-js@2');
     identitySupabase = module.createClient(config.url, config.anonKey, {
