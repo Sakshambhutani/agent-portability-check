@@ -117,3 +117,18 @@ test('target Claude adds project adapter for project skill', () => {
   assert.ok(adapter);
   assert.equal(adapter.linkPath, path.join(cwd, '.claude/skills/project-review'));
 });
+
+
+test('manual conflicts explain the exact invalid package issue', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.codex/skills/broken/SKILL.md'), '---\nname: broken\n---\nRun scripts/missing.sh');
+
+  const before = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const plan = planPortableReadyFix(before, { cwd, home });
+
+  assert.equal(plan.copyPlans.length, 0);
+  assert.equal(plan.conflicts.length, 1);
+  assert.match(plan.conflicts[0].reason, /description/i);
+  assert.match(plan.conflicts[0].reason, /scripts\/missing\.sh/);
+  assert.match(plan.conflicts[0].reason, /\.codex\/skills\/broken\/SKILL\.md/);
+});
