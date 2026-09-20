@@ -1,15 +1,19 @@
 {
-  "name": "agent-portability",
+  "name": "agent-labs",
   "interface": {
-    "displayName": "Agent Portability"
+    "displayName": "Agent Labs"
   },
   "plugins": [
     {
       "name": "agent-portability",
       "source": {
         "source": "local",
-        "path": "."
-      }
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Developer Tools"
     }
   ]
 }
