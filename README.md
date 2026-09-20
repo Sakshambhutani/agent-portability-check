@@ -85,7 +85,7 @@ Important runtime distinction:
 
 - In **any supported local agent runtime with filesystem + shell access**, the skill can scan and repair the machine directly.
 - In a **ChatGPT surface without access to the user's local filesystem**, the skill must not pretend it changed the laptop. It can guide the user to run the local checker and interpret the private JSON result.
-- Intermediate intelligent scans use `--no-publish`; the final verified result can create the share/team page.
+- Skill-driven diagnostics are **private by default** with `--no-publish`. A public result/share page is created only when the user explicitly asks to share, save, compare with teammates, or publish a result.
 
 ## 10-second compatibility check
 
@@ -214,28 +214,37 @@ Target achievements are intentionally narrow: **skill packages ready for <target
 
 ## What "ready" means
 
-The target simulator checks **skill-package compatibility**, including:
+The checker now discovers both ordinary skill roots and installed plugin-provided skills when their local installation records are available. It checks:
 
-- target discovery location
+- target discovery location, including the source plugin host
 - valid `SKILL.md` frontmatter
-- `name`
-- `description`
-- lowercase kebab-case names
-- folder-name alignment
-- missing local companion files under `scripts/`, `references/`, and `assets/`
+- `name`, `description`, lowercase kebab-case names, and folder-name alignment
+- companion references under `scripts/`, `references/`, and `assets/`
+- anchors and URI-style links without treating them as missing local files
+- plugin-root dependencies that live outside the skill directory
 - same-name drift
-- referenced local CLI/interpreter availability
-- required environment variable presence (names only; never values)
+- required versus optional/example CLI references
+- required versus optional environment-variable references (names only; never values)
 - explicit MCP server references against target config
-- local-only vs cloud-runtime skill availability
+- local-only vs cloud-runtime availability
 - harness-specific instruction gaps such as `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, Copilot instructions, Cursor rules, OpenCode instructions, and Roo rules
 - whether a location/discovery fix is safe to automate
 
-The result is:
+Each target result keeps the evidence separate:
+
+- **Discoverable** — can the target find the skill?
+- **Package complete** — are the skill and referenced companion files structurally complete?
+- **Dependencies available** — are required CLIs, env names, and MCP configuration present?
+- **Authentication** — explicitly **not tested** unless a host actually verifies credentials/session access
+- **Execution** — explicitly **not tested** unless a representative workflow is actually run
+
+The high-level state remains:
 
 - **Ready**
 - **Auto-fix**
 - **Manual attention**
+
+A copied skill or symlink proves discovery/layout only. It does not prove authenticated access or successful runtime behavior.
 
 See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the current harness assumptions and primary-source documentation.
 
@@ -273,6 +282,7 @@ npx github:Sakshambhutani/agent-portability-check --global-only
 The CLI separates:
 
 - installed agent tools
+- installed plugin-provided skills (best-effort from local plugin installation records)
 - config footprints
 - global skills
 - project skills
@@ -282,12 +292,14 @@ The CLI separates:
 
 ## Sharing
 
-Every scan produces:
+A normal interactive CLI scan can produce:
 
 - a local SVG diagnostic card
 - a local detailed HTML report
 - a local JSON report
 - a referral-aware public diagnostic URL
+
+When the installed **Agent Portability** skill orchestrates the checker, it uses `--no-publish` during diagnosis and verification. Public sharing is opt-in rather than an automatic side effect.
 
 Before achievement, the page is a **diagnostic**: it leads with fixing, keeps public social-share controls locked, but still allows Team Compare so multiple teammates can run the same diagnostic.
 
