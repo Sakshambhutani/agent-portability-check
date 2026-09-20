@@ -144,3 +144,34 @@ test('falls back to a self-contained URL if short publishing fails', async () =>
   assert.equal(info.short, false);
   assert.match(info.url, /total=1/);
 });
+
+
+test('share URLs preserve new harness targets', () => {
+  for (const target of ['gemini','copilot','opencode','roo']) {
+    const report = {
+      installedHarnesses: [{ key: target }],
+      global: {
+        score: null,
+        totalSkills: 2,
+        portableAcrossInstalled: 0,
+        portableReadySkills: 2,
+        sharedFormatSkills: 2,
+        drift: [],
+      },
+    };
+    const info = createShareInfo(report, {
+      publicUrl: 'https://example.com',
+      referralId: 'ref-' + target,
+      targetCompatibility: {
+        target,
+        runtime: target === 'copilot' ? 'cloud' : 'local',
+        summary: { total: 2, ready: 2, autoFix: 0, manual: 0 },
+        contextRisks: [{ kind: 'instruction' }],
+        dependencyRiskCount: 0,
+        skillPackagesReady: true,
+      },
+    });
+    assert.match(info.url, new RegExp('target=' + target));
+    assert.match(info.url, /targetComplete=1/);
+  }
+});
