@@ -136,6 +136,9 @@ export default function handler(req, res) {
   const postText = `${shareSentence}
 
 Check yours: ${canonical}`;
+  const postPreview = `${shareSentence}
+
+Result link will be included when you copy.`;
 
   const hero = target
     ? `${targetReady} / ${targetTotal}`
@@ -227,7 +230,7 @@ Check yours: ${canonical}`;
     <div class="insight">${esc(description)}</div>
 
     ${shareAchievement ? `
-      <div class="copybox" id="posttext">${esc(postText)}</div>
+      <div class="copybox" id="posttext">${esc(postPreview)}</div>
       <div class="actions">
         <button id="copyPost" class="primary">Copy post text</button>
         <a id="linkedin" class="secondary" href="${esc(linkedin)}" target="_blank" rel="noopener">Open LinkedIn</a>

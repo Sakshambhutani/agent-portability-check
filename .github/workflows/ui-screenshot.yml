@@ -58,6 +58,7 @@ jobs:
           npx -y playwright@1.55.0 screenshot \
             --browser chromium \
             --viewport-size "1440,1100" \
+            --wait-for-timeout 2500 \
             --full-page \
             'https://agent-portability-check.vercel.app/team/preview-team' \
             team.png

@@ -1,4 +1,4 @@
 export default function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  res.status(200).json({ version: '0.7.2' });
+  res.status(200).json({ version: '0.7.3' });
 }
