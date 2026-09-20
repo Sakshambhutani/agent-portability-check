@@ -2,6 +2,28 @@
 
 Agent Portability is packaged as a skills-only plugin so the same workflow can be installed through Claude, Claude Cowork, ChatGPT, Codex, or the Skills CLI without maintaining separate implementations.
 
+## Skills.sh / Skills CLI
+
+Install the **individual Agent Portability skill** directly from the public GitHub repository:
+
+```bash
+npx skills@latest add https://github.com/Sakshambhutani/agent-portability-check --skill agent-portability
+```
+
+This is the canonical Skills CLI distribution path. The source remains:
+
+```text
+skills/agent-portability/SKILL.md
+```
+
+A Skills.sh pack may still be used as an optional bundle/share link, but it is not required for this single skill and should not be treated as the primary install path.
+
+Update an existing Skills CLI installation with:
+
+```bash
+npx skills update agent-portability
+```
+
 ## Claude / Cowork
 
 The repository includes:
