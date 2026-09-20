@@ -55,12 +55,14 @@ export function planPortableReadyFix(report, {
   home = os.homedir(),
   cwd = report.cwd || process.cwd(),
   target = null,
+  targets = [],
   blockedSkillNames = [],
   blockedSkillKeys = [],
 } = {}) {
   const context = { cwd, home };
   const installed = new Set(report.installedHarnesses.map(h => h.key));
   if (target) installed.add(target);
+  for (const item of targets || []) installed.add(item);
   const blockedNames = new Set(blockedSkillNames);
   const blockedKeys = new Set(blockedSkillKeys);
   const copyPlans = [];
