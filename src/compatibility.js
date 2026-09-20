@@ -228,10 +228,17 @@ export function analyzeTargetCompatibility(report, target, {
   const dependencyRiskCount = skills.reduce((sum, skill) => sum + (skill.dependencies?.blockers?.length || 0), 0);
   const targetInstalled = report.installedHarnesses.some(item => item.key === target);
   const targetLabel = target === 'cursor' && runtime === 'cloud' ? 'Cursor Cloud' : targetMeta.label;
-  const fullyReady = Boolean(summary.total > 0 && summary.ready === summary.total && summary.autoFix === 0 && summary.manual === 0 && contextRisks.length === 0);
+  const skillPackagesReady = Boolean(
+    summary.total > 0 &&
+    summary.ready === summary.total &&
+    summary.autoFix === 0 &&
+    summary.manual === 0
+  );
+  const fullyReady = Boolean(skillPackagesReady && contextRisks.length === 0);
 
   return {
-    target, targetLabel, runtime, targetInstalled, summary, skills, contextRisks, localOnlyRisks, dependencyRiskCount, fullyReady,
+    target, targetLabel, runtime, targetInstalled, summary, skills, contextRisks, localOnlyRisks,
+    dependencyRiskCount, skillPackagesReady, fullyReady,
     readyPercent: summary.total > 0 ? Math.round(100 * summary.ready / summary.total) : null,
   };
 }
