@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agent-portability",
-  "version": "0.1.0",
-  "description": "Diagnose and repair AI agent portability across Claude Code, Codex, Cursor, and Cursor Cloud.",
+  "version": "0.2.0",
+  "description": "Diagnose and repair AI agent portability across Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, and supported cloud runtimes.",
   "author": {
     "name": "Saksham Bhutani",
     "url": "https://github.com/Sakshambhutani"
@@ -16,6 +16,10 @@
     "codex",
     "cursor",
     "portability",
-    "migration"
+    "migration",
+    "gemini",
+    "github-copilot",
+    "opencode",
+    "roo-code"
   ]
 }
