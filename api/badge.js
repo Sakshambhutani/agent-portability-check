@@ -1,3 +1,4 @@
+import { HARNESS_ORDER, targetLabels } from '../src/harnesses.js';
 function escXml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;'
@@ -9,12 +10,10 @@ function intParam(value, min, max, fallback = 0) {
   return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
 }
 
-const LABELS = { codex: 'Codex', claude: 'Claude', cursor: 'Cursor' };
+const LABELS = targetLabels();
 
 export default function handler(req, res) {
-  const target = ['claude', 'codex', 'cursor'].includes(req.query.target)
-    ? req.query.target
-    : '';
+  const target = HARNESS_ORDER.includes(req.query.target) ? req.query.target : '';
   const total = intParam(req.query.total, 0, 999, 0);
   const ready = intParam(req.query.ready, 0, total || 999, 0);
   const complete = total > 0 && ready === total;
