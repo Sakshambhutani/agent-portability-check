@@ -6,15 +6,25 @@ Agent Portability Check covers cross-harness compatibility and runtime changes. 
 
 Public site: https://agent-portability-check.vercel.app
 
-## Use it inside your agent harness
+## Install the Agent Portability skill
 
 The CLI is the deterministic verifier. The `agent-portability` skill lets an AI harness inspect the report, investigate ambiguous blockers, make evidence-backed repairs, and then re-run the checker.
 
-Install the skill with the Skills CLI:
+The canonical public Skills CLI install is the **individual skill directly from this GitHub repository**:
 
 ```bash
-npx skills add https://github.com/Sakshambhutani/agent-portability-check --skill agent-portability
+npx skills@latest add https://github.com/Sakshambhutani/agent-portability-check --skill agent-portability
 ```
+
+The canonical skill source is `skills/agent-portability/SKILL.md`. A Skills.sh pack is optional convenience packaging; it is not required to install or distribute this individual skill.
+
+To refresh an existing Skills CLI installation:
+
+```bash
+npx skills update agent-portability
+```
+
+## Use it inside your agent harness
 
 Then ask your harness naturally:
 
@@ -48,7 +58,7 @@ claude --plugin-dir ./agent-portability-check
 
 The plugin skill is then namespaced in Claude Code as `/agent-portability:agent-portability`.
 
-The repository marketplaces are ready for private/repository distribution. Public directory listing is a separate provider submission/review step. The same canonical skill is used across skills.sh, Claude/Cowork, ChatGPT, and Codex.
+Skills CLI / Skills.sh distribution uses the public GitHub repository directly; no separate pack or duplicate skill copy is required. Claude/Cowork and ChatGPT/Codex marketplace packaging points to the same canonical `skills/agent-portability/SKILL.md`, so there is one source of truth across distribution surfaces.
 
 Important runtime distinction:
 
