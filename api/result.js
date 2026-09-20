@@ -49,6 +49,36 @@ function publicResultAgents(value) {
     .slice(0, HARNESS_ORDER.length);
 }
 
+function cleanAllRows(value) {
+  const allowed = new Set([
+    ...HARNESS_ORDER,
+    ...HARNESS_ORDER.filter(key => harnessDefinition(key)?.cloud).map(key => key + '-cloud'),
+  ]);
+  return String(value || '')
+    .split(',')
+    .slice(0, 12)
+    .map(item => {
+      const [id, ready, total, autoFix, manual, context, deps, complete] = item.split(':');
+      if (!allowed.has(id)) return null;
+      const base = id.endsWith('-cloud') ? id.slice(0, -6) : id;
+      const isCloud = id.endsWith('-cloud');
+      const meta = harnessDefinition(base);
+      const totalValue = intParam(total, 0, 999, 0);
+      return {
+        id,
+        label: isCloud ? (meta?.cloudLabel || (meta?.label + ' Cloud')) : meta?.label,
+        ready: intParam(ready, 0, totalValue || 999, 0),
+        total: totalValue,
+        autoFix: intParam(autoFix, 0, 999, 0),
+        manual: intParam(manual, 0, 999, 0),
+        context: intParam(context, 0, 999, 0),
+        deps: intParam(deps, 0, 999, 0),
+        complete: complete === '1',
+      };
+    })
+    .filter(Boolean);
+}
+
 async function createPublicResult(req, res) {
   let raw = '';
   try { raw = JSON.stringify(req.body || {}); } catch {
@@ -144,6 +174,16 @@ export default async function handler(req, res) {
   const targetLabel = target
     ? (runtime === 'cloud' ? (harnessDefinition(target)?.cloudLabel || `${LABELS[target]} Cloud`) : LABELS[target])
     : '';
+  const allMode = source.mode === 'all';
+  const allRows = allMode ? cleanAllRows(source.all) : [];
+  const allTargetsTotal = allMode ? intParam(source.allTotal, 0, 20, allRows.length) : 0;
+  const allTargetsReady = allMode ? intParam(source.allReady, 0, allTargetsTotal || 20, allRows.filter(row => row.complete).length) : 0;
+  const allComplete = Boolean(
+    allMode &&
+    allTargetsTotal > 0 &&
+    allTargetsReady === allTargetsTotal &&
+    (source.allComplete === '1' || source.allComplete === true)
+  );
 
   const singleAgent = score === null;
   const readiness = total > 0 ? Math.round(100 * ready / total) : null;
@@ -157,7 +197,7 @@ export default async function handler(req, res) {
     targetDeps === 0 &&
     (source.targetComplete === '1' || source.targetComplete === true)
   );
-  const shareAchievement = target ? targetComplete : portableReady;
+  const shareAchievement = allMode ? allComplete : target ? targetComplete : portableReady;
 
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const origin = `https://${req.headers.host}`;
@@ -165,6 +205,7 @@ export default async function handler(req, res) {
 
   const checkParams = new URLSearchParams();
   if (ref) checkParams.set('ref', ref);
+  if (allMode) checkParams.set('all', '1');
   if (target) checkParams.set('target', target);
   if (runtime === 'cloud') checkParams.set('runtime', 'cloud');
   if (teamCode) checkParams.set('team', teamCode);
@@ -172,28 +213,36 @@ export default async function handler(req, res) {
 
   const fixCommand = [
     'npx github:Sakshambhutani/agent-portability-check',
-    target ? `--target ${target}` : '',
-    runtime === 'cloud' ? '--runtime cloud' : '',
+    allMode ? '--all' : target ? `--target ${target}` : '',
+    !allMode && runtime === 'cloud' ? '--runtime cloud' : '',
     '--fix',
     ref ? `--ref ${ref}` : '',
     teamCode ? `--team ${teamCode}` : '',
   ].filter(Boolean).join(' ');
 
-  const title = targetComplete
-    ? `My AI skills are ready for ${targetLabel}`
-    : portableReady
-      ? 'My AI setup is 100% portable-ready'
-      : target
-        ? `${targetReady}/${targetTotal} skills ready for ${targetLabel}`
-        : `${ready}/${total} AI skills portable-ready`;
+  const title = allMode
+    ? allComplete
+      ? `My AI skills are ready across all ${allTargetsTotal} supported harness surfaces`
+      : `${allTargetsReady}/${allTargetsTotal} harness targets ready`
+    : targetComplete
+      ? `My AI skills are ready for ${targetLabel}`
+      : portableReady
+        ? 'My AI setup is 100% portable-ready'
+        : target
+          ? `${targetReady}/${targetTotal} skills ready for ${targetLabel}`
+          : `${ready}/${total} AI skills portable-ready`;
 
-  const description = targetComplete
-    ? `All ${targetTotal} skill packages are discoverable and structurally ready for ${targetLabel}.${targetContext ? ` ${targetContext} context gap${targetContext === 1 ? '' : 's'} still shown separately.` : ''}`
-    : portableReady
-      ? `${ready}/${total} global skills are in shared format with no drift.`
-      : target
-        ? `${targetAuto} auto-fix, ${targetManual} manual, ${targetDeps} dependency blockers, and ${targetContext} context gaps before moving to ${targetLabel}.`
-        : `${total} global skills found in ${agentLabel}. ${ready} are currently portable-ready.`;
+  const description = allMode
+    ? allComplete
+      ? `All checked skill packages are ready across ${allTargetsTotal} supported local/cloud harness surfaces. Context differences remain visible separately.`
+      : `${allTargetsReady} of ${allTargetsTotal} supported harness surfaces are package-ready. The diagnostic shows the remaining auto-fix, manual, dependency, and context gaps by target.`
+    : targetComplete
+      ? `All ${targetTotal} skill packages are discoverable and structurally ready for ${targetLabel}.${targetContext ? ` ${targetContext} context gap${targetContext === 1 ? '' : 's'} still shown separately.` : ''}`
+      : portableReady
+        ? `${ready}/${total} global skills are in shared format with no drift.`
+        : target
+          ? `${targetAuto} auto-fix, ${targetManual} manual, ${targetDeps} dependency blockers, and ${targetContext} context gaps before moving to ${targetLabel}.`
+          : `${total} global skills found in ${agentLabel}. ${ready} are currently portable-ready.`;
 
   const og = new URL('/api/og', origin);
   og.searchParams.set('v', '6');
@@ -217,9 +266,11 @@ export default async function handler(req, res) {
 
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
 
-  const shareSentence = targetComplete
-    ? `I got all ${targetTotal} of my AI skill packages ready for ${targetLabel}.${targetContext ? ` The checker still flags ${targetContext} separate context gap${targetContext === 1 ? '' : 's'}.` : ''}`
-    : `I made my AI setup 100% portable-ready. ${ready}/${total} skills are now in shared format.`;
+  const shareSentence = allMode && allComplete
+    ? `I got my AI skill packages ready across all ${allTargetsTotal} supported harness surfaces.`
+    : targetComplete
+      ? `I got all ${targetTotal} of my AI skill packages ready for ${targetLabel}.${targetContext ? ` The checker still flags ${targetContext} separate context gap${targetContext === 1 ? '' : 's'}.` : ''}`
+      : `I made my AI setup 100% portable-ready. ${ready}/${total} skills are now in shared format.`;
 
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareSentence + ' Check yours:')}&url=${encodeURIComponent(canonical)}`;
   const postText = `${shareSentence}
@@ -229,22 +280,26 @@ Check yours: ${canonical}`;
 
 Result link will be included when you copy.`;
 
-  const hero = target
-    ? `${targetReady} / ${targetTotal}`
-    : portableReady
-      ? '100%'
-      : `${ready} / ${total}`;
+  const hero = allMode
+    ? `${allTargetsReady} / ${allTargetsTotal}`
+    : target
+      ? `${targetReady} / ${targetTotal}`
+      : portableReady
+        ? '100%'
+        : `${ready} / ${total}`;
 
-  const heroLabel = target
-    ? `skill packages ready for ${targetLabel}`
-    : portableReady
-      ? 'PORTABLE-READY'
-      : 'skills portable-ready';
+  const heroLabel = allMode
+    ? 'harness targets package-ready'
+    : target
+      ? `skill packages ready for ${targetLabel}`
+      : portableReady
+        ? 'PORTABLE-READY'
+        : 'skills portable-ready';
 
   const badge = new URL('/api/badge', origin);
   if (target) badge.searchParams.set('target', target);
-  badge.searchParams.set('ready', String(target ? targetReady : ready));
-  badge.searchParams.set('total', String(target ? targetTotal : total));
+  badge.searchParams.set('ready', String(allMode ? allTargetsReady : target ? targetReady : ready));
+  badge.searchParams.set('total', String(allMode ? allTargetsTotal : target ? targetTotal : total));
   const badgeMarkdown = `[![Agent Portability](${badge.toString()})](${canonical})`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
