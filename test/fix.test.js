@@ -175,3 +175,30 @@ test('all-target fix planning canonicalizes shared skills and adds only required
   assert.equal(fs.existsSync(path.join(home, '.agents/skills/review/SKILL.md')), true);
   assert.equal(fs.lstatSync(path.join(home, '.claude/skills/review')).isSymbolicLink(), true);
 });
+
+
+test('does not auto-copy plugin skills that depend on plugin-root files', () => {
+  const { cwd, home } = fixture();
+  const pluginRoot = path.join(home, '.claude/plugins/cache/community/reviewer/1.0.0');
+  write(
+    path.join(pluginRoot, 'skills/deep-review/SKILL.md'),
+    '---\nname: deep-review\ndescription: Deep review\n---\nRun ${CLAUDE_PLUGIN_ROOT}/scripts/check.sh',
+  );
+  write(path.join(pluginRoot, 'scripts/check.sh'), '#!/bin/sh\nexit 0\n');
+  write(
+    path.join(home, '.claude/plugins/installed_plugins.json'),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        'reviewer@community': [{ scope: 'user', installPath: pluginRoot }],
+      },
+    }),
+  );
+
+  const before = scan({ cwd, home, installedHarnesses: ['claude'] });
+  const plan = planPortableReadyFix(before, { cwd, home });
+
+  assert.equal(plan.copyPlans.length, 0);
+  assert.equal(plan.conflicts.length, 1);
+  assert.match(plan.conflicts[0].reason, /outside its skill directory/i);
+});
