@@ -434,6 +434,17 @@ async function main() {
   let localSession = resumeState.session;
   const sessionResumed = resumeState.resumed;
 
+  if (args.all && args.target) {
+    console.error('Use either --all or --target, not both.');
+    process.exitCode = 1;
+    return;
+  }
+  if (args.all && args.runtimeProvided) {
+    console.error('--all already checks all supported local and cloud surfaces; do not combine it with --runtime.');
+    process.exitCode = 1;
+    return;
+  }
+
   if (args.target && !TARGETS[args.target]) {
     console.error(`Invalid --target value. Use: ${targetKeys().join(', ')}.`);
     process.exitCode = 1;
@@ -475,6 +486,9 @@ async function main() {
   let targetReport = args.target
     ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
     : null;
+  let allReport = args.all
+    ? analyzeAllCompatibility(report, { cwd: args.cwd, includeCloud: true })
+    : null;
   let fixPlan = null;
   let fixApplied = false;
 
@@ -488,10 +502,12 @@ async function main() {
     fixPlan = planPortableReadyFix(report, {
       cwd: args.cwd,
       target: args.target,
-      blockedSkillKeys,
+      targets: args.all ? targetKeys() : [],
+      blockedSkillKeys: args.all ? [] : blockedSkillKeys,
     });
     printFixPlan(fixPlan, report);
     if (targetReport) printTargetCompatibility(targetReport, { heading: 'BEFORE FIX' });
+    if (allReport) printAllCompatibility(allReport, { heading: 'BEFORE FIX — ALL HARNESSES' });
 
     if (fixPlan.changeCount > 0) {
       const approved = args.yes || await confirmFix();
@@ -502,6 +518,9 @@ async function main() {
         report = scan({ cwd: args.cwd });
         targetReport = args.target
           ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
+          : null;
+        allReport = args.all
+          ? analyzeAllCompatibility(report, { cwd: args.cwd, includeCloud: true })
           : null;
         const after = report.global.portableReadyPercent;
         fixApplied = true;
@@ -518,6 +537,7 @@ async function main() {
             }
           }
         }
+        if (allReport) printAllCompatibility(allReport, { heading: 'AFTER FIX — ALL HARNESSES' });
         if (after === 100) console.log('🏆 100% PORTABLE-READY');
       } else {
         console.log('\nNo changes applied.');
@@ -531,7 +551,11 @@ async function main() {
   }
 
   const shareInfo = args.publish
-    ? await publishShareResult(report, { targetCompatibility: targetReport, teamCode: args.team })
+    ? await publishShareResult(report, {
+        targetCompatibility: targetReport,
+        allCompatibility: allReport,
+        teamCode: args.team,
+      })
     : null;
 
   let files = null;
@@ -540,6 +564,7 @@ async function main() {
     console.log(JSON.stringify({
       ...report,
       targetCompatibility: targetReport,
+      allCompatibility: allReport,
     }, null, 2));
   } else {
     console.log('\nAgent Portability Check');
@@ -552,11 +577,16 @@ async function main() {
     console.log('\nWhat stood out');
     for (const f of report.findings) console.log(`${findingIcon(f.level)} ${f.text}`);
     if (targetReport && !args.fix) printTargetCompatibility(targetReport);
+    if (allReport && !args.fix) printAllCompatibility(allReport);
   }
 
   if (args.write) {
     const out = path.resolve(args.cwd, args.output);
-    files = writeReports(report, out, { shareUrl: shareInfo?.url, targetCompatibility: targetReport });
+    files = writeReports(report, out, {
+      shareUrl: shareInfo?.url,
+      targetCompatibility: targetReport,
+      allCompatibility: allReport,
+    });
     if (!args.json) {
       const cardLabel = isAchievement(report, targetReport) ? 'Local achievement card:' : 'Local diagnostic card:';
       console.log('\n' + cardLabel.padEnd(24) + files.svgPath);
@@ -566,7 +596,9 @@ async function main() {
     console.log('Result page: ' + shareInfo.url);
   }
 
-  const achievedNow = isAchievement(report, targetReport);
+  const achievedNow = allReport
+    ? Boolean(allReport.summary.allSkillPackagesReady)
+    : isAchievement(report, targetReport);
   if (shareInfo) {
     if (!localSession) {
       localSession = createSession({
