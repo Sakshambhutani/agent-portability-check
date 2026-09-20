@@ -197,6 +197,8 @@ test('team compare is always available while social sharing stays achievement-ga
 
 test('team page client script parses', async () => {
   const html = await render(teamPageHandler, { code:'preview-team' });
+  assert.match(html, /team\.mode === 'all'/);
+  assert.match(html, /--all/);
   const scripts = scriptsFromHtml(html);
   assert.ok(scripts.length >= 1);
   for (const [index, script] of scripts.entries()) checkJs(script, 'team page script ' + index);
