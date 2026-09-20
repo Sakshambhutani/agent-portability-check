@@ -30,6 +30,8 @@ const ALLOWED_EVENTS = new Set([
   'apc_cli_session_resumed',
   'apc_cli_result_opened',
   'apc_cli_deferred',
+  'apc_manual_issues_reviewed',
+  'apc_migration_test_selected',
   'apc_web_resume_clicked',
 ]);
 

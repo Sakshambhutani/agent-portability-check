@@ -109,6 +109,35 @@ test('result page client script parses in before and trophy states', async () =>
   }
 });
 
+
+
+test('sharing and team compare unlock only on achievement', async () => {
+  const before = await render(resultHandler, {
+    ref:'before-gating',
+    score:'na', total:'7', portable:'0', ready:'4', shared:'4', drift:'0',
+    agents:'codex', target:'claude', targetReady:'4', targetTotal:'7',
+    targetAuto:'0', targetManual:'3', targetContext:'0', targetDeps:'0',
+    runtime:'local', targetComplete:'0',
+  });
+  assert.match(before, /private diagnostic/i);
+  assert.match(before, /Copy diagnostic link/);
+  assert.doesNotMatch(before, /id="linkedin"/);
+  assert.doesNotMatch(before, /id="teamAction"/);
+
+  const trophy = await render(resultHandler, {
+    ref:'trophy-gating',
+    score:'na', total:'7', portable:'0', ready:'7', shared:'7', drift:'0',
+    agents:'codex', target:'claude', targetReady:'7', targetTotal:'7',
+    targetAuto:'0', targetManual:'0', targetContext:'0', targetDeps:'0',
+    runtime:'local', targetComplete:'1',
+  });
+  assert.match(trophy, /id="linkedin"/);
+  assert.match(trophy, /Challenge a teammate/);
+  assert.match(trophy, /id="teamAction"/);
+  assert.match(trophy, /id="identityPanel"/);
+  assert.match(trophy, /Save result \/ Compare team/);
+});
+
 test('team page client script parses', async () => {
   const html = await render(teamPageHandler, { code:'preview-team' });
   const scripts = scriptsFromHtml(html);

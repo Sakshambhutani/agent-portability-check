@@ -247,6 +247,17 @@ function printFixPlan(plan, report) {
   console.log('\nSafety: no existing skill files are deleted or overwritten.');
 }
 
+function printManualReview(conflicts) {
+  console.log('\nMANUAL REVIEW');
+  console.log('────────────────────────────────────');
+  for (const item of conflicts) {
+    console.log(`! [${item.scope || 'global'}] ${item.name}`);
+    console.log(`  ${item.reason}`);
+  }
+  console.log('\nFix these issues in the source skill package, then run the check again.');
+  console.log('Nothing is changed automatically for manual issues.');
+}
+
 function compatibilityIcon(status) {
   if (status === 'ready') return '✓';
   if (status === 'auto-fix') return '⚡';
@@ -463,8 +474,9 @@ async function main() {
     const out = path.resolve(args.cwd, args.output);
     files = writeReports(report, out, { shareUrl: shareInfo?.url, targetCompatibility: targetReport });
     if (!args.json) {
-      console.log('\nLocal share card:  ' + files.svgPath);
-      console.log('Local full report: ' + files.htmlPath);
+      const cardLabel = isAchievement(report, targetReport) ? 'Local achievement card:' : 'Local diagnostic card:';
+      console.log('\n' + cardLabel.padEnd(24) + files.svgPath);
+      console.log('Local full report:       ' + files.htmlPath);
     }
   } else if (shareInfo && !args.json && !process.stdout.isTTY) {
     console.log('Result page: ' + shareInfo.url);
@@ -504,12 +516,15 @@ async function main() {
   let followUp = null;
   let resultOpenedFromCli = false;
   let deferredNow = false;
+  let manualReviewedNow = false;
+  let migrationTestSelectedNow = false;
   const interactive = !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
   if (interactive && shareInfo) {
     if (achievedNow) {
       console.log('\n🏆 Achievement unlocked.');
-      const answer = (await ask('Open your result card in the browser? [Y/n] ')).toLowerCase();
+      console.log('Sharing is enabled because this result is now a defensible achievement.');
+      const answer = (await ask('Open your achievement page in the browser? [Y/n] ')).toLowerCase();
       if (answer !== 'n' && answer !== 'no') {
         if (openBrowser(shareInfo.url)) {
           console.log('Opening your result…');
@@ -531,7 +546,7 @@ async function main() {
         console.log('\nYour trophy is saved locally. Reopen it later with:');
         console.log('npx github:Sakshambhutani/agent-portability-check --resume');
       }
-    } else if (!args.fix && localSession) {
+    } else if (localSession) {
       const blockedSkillKeys = targetReport
         ? targetReport.skills
             .filter(skill => skill.status === 'manual')
@@ -545,24 +560,37 @@ async function main() {
 
       console.log('\nNext step');
       console.log('────────────────────────────────────');
-      if (previewPlan.changeCount > 0) {
+      const hasSafeFixes = previewPlan.changeCount > 0;
+      const hasManualIssues = !hasSafeFixes && previewPlan.conflicts.length > 0;
+      if (hasSafeFixes) {
         console.log(`I can safely improve ${previewPlan.changeCount} item${previewPlan.changeCount === 1 ? '' : 's'}.`);
         console.log('Original skills stay untouched and nothing is silently overwritten.');
-      } else if (previewPlan.conflicts.length) {
+      } else if (hasManualIssues) {
         console.log(`${previewPlan.conflicts.length} issue${previewPlan.conflicts.length === 1 ? '' : 's'} need manual attention.`);
+        console.log('Automatic fixes are exhausted; review the exact blockers to keep moving toward an achievement.');
       } else {
         console.log('No automatic changes are needed right now.');
       }
+      if (!args.target && report.installedHarnesses.length === 1) {
+        console.log('You can still test whether this setup is ready for Claude Code, Codex, Cursor, or Cursor Cloud.');
+      }
 
-      const answer = (await ask(
-        '\n[F] Fix now  [T] Test migration  [V] View result  [Q] Continue later\nChoose: '
-      )).toLowerCase();
+      const actionPrompt = hasSafeFixes
+        ? '\n[F] Fix now  [T] Test migration  [V] View diagnostic  [Q] Continue later\nChoose: '
+        : hasManualIssues
+          ? '\n[R] Review issues  [T] Test migration  [V] View diagnostic  [Q] Continue later\nChoose: '
+          : '\n[T] Test migration  [V] View diagnostic  [Q] Continue later\nChoose: ';
+      const answer = (await ask(actionPrompt)).toLowerCase();
 
-      if (answer === 'f' && previewPlan.changeCount > 0) {
+      if (answer === 'f' && hasSafeFixes) {
         followUp = { type: 'spawn', args: ['--fix'] };
+      } else if (answer === 'r' && hasManualIssues) {
+        printManualReview(previewPlan.conflicts);
+        manualReviewedNow = true;
       } else if (answer === 't') {
         const choice = await chooseMigrationTarget();
         if (choice) {
+          migrationTestSelectedNow = true;
           followUp = {
             type: 'spawn',
             args: ['--target', choice.target, '--runtime', choice.runtime],
@@ -623,6 +651,12 @@ async function main() {
     }
     if (deferredNow) {
       await captureTelemetry('apc_cli_deferred', baseProperties);
+    }
+    if (manualReviewedNow) {
+      await captureTelemetry('apc_manual_issues_reviewed', baseProperties);
+    }
+    if (migrationTestSelectedNow) {
+      await captureTelemetry('apc_migration_test_selected', baseProperties);
     }
 
     if (args.fix && fixPlan) {

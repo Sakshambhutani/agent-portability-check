@@ -87,8 +87,15 @@ export function createHtml(report, { shareUrl = '', targetCompatibility = null }
     ? report.configFootprints.map(f => `<li><code>${esc(f.path)}</code> — ${esc(f.label)} (${esc(f.scope)})</li>`).join('')
     : '<li>None found.</li>';
   const score = report.global.score === null ? 'N/A' : `${report.global.score}%`;
+  const achievement = targetCompatibility
+    ? Boolean(targetCompatibility.fullyReady)
+    : Boolean(
+        report.global.totalSkills > 0 &&
+        report.global.portableReadyPercent === 100 &&
+        report.global.drift.length === 0
+      );
   const shareCta = shareUrl
-    ? `<p><a class="share" href="${esc(shareUrl)}">Open share page →</a></p>`
+    ? `<p><a class="share" href="${esc(shareUrl)}">${achievement ? 'Open achievement page' : 'Open diagnostic page'} →</a></p>`
     : '';
 
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent Portability Check</title><style>

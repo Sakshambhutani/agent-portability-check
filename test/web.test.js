@@ -46,3 +46,15 @@ test('telemetry relay sanitizes distinct and referral ids', () => {
   assert.equal(payload.distinct_id.includes('<'), false);
   assert.equal(payload.properties.referral_id.includes('<'), false);
 });
+
+
+test('telemetry relay accepts manual-review and migration-intent events', () => {
+  for (const event of ['apc_manual_issues_reviewed', 'apc_migration_test_selected']) {
+    const payload = sanitizeTelemetryPayload({
+      event,
+      distinct_id: 'apc_123',
+      properties: { agent_count: 1 },
+    });
+    assert.equal(payload?.event, event);
+  }
+});
