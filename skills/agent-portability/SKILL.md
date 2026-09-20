@@ -1,6 +1,6 @@
 ---
 name: agent-portability
-description: Diagnose and repair portability of AI agent skills, instructions, MCP dependencies, CLIs, environment requirements, and context across Claude Code, Codex, Cursor, and Cursor Cloud. Use when a user asks to share, migrate, reuse, compare, or make an agent setup work across harnesses, machines, runtimes, or teammates.
+description: Diagnose and repair portability of AI agent skills, instructions, MCP dependencies, CLIs, environment requirements, and context across Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, and supported cloud runtimes. Use when a user asks to share, migrate, reuse, compare, or make an agent setup work across harnesses, machines, runtimes, or teammates.
 ---
 
 # Agent Portability
@@ -34,7 +34,7 @@ If it is not available, do not claim to have scanned or fixed the user's machine
 npx github:Sakshambhutani/agent-portability-check --json --no-write --no-publish
 ```
 
-For a specific target, append `--target claude`, `--target codex`, `--target cursor`, or `--target cursor --runtime cloud`.
+For a specific target, append one of `--target claude|codex|cursor|gemini|copilot|opencode|roo`. Cloud checks are available for Cursor and GitHub Copilot via `--runtime cloud`.
 
 ## Scope
 
@@ -91,7 +91,11 @@ If the user says "make it portable everywhere", evaluate:
 - Claude Code,
 - Codex,
 - Cursor local,
-- Cursor Cloud when cloud portability is relevant.
+- Gemini CLI,
+- GitHub Copilot,
+- OpenCode,
+- Roo Code,
+- Cursor Cloud and GitHub Copilot Cloud Agent when cloud portability is relevant.
 
 ## Step 2: Apply deterministic safe fixes
 
@@ -161,8 +165,9 @@ Use these policies:
 - **Environment variables/secrets**: never invent or expose values. A non-secret value may be inferred only from authoritative local configuration or an obvious existing path. Do not persistently modify shell profiles or secret stores without explicit user approval.
 - **CLI dependencies**: prefer existing project-local package managers and declared dependencies. Do not use `sudo` or perform global installs without explicit approval.
 - **MCP servers**: translate an existing working config when possible. Do not copy credential values into tracked files.
-- **Instruction/context gaps**: treat them separately from skill-package readiness. If translating `AGENTS.md`, `CLAUDE.md`, or Cursor rules, merge conservatively and do not overwrite unrelated target instructions.
-- **Cursor Cloud**: local availability does not prove cloud availability. Repository-visible skills, cloud secrets, and cloud runtime dependencies must be treated explicitly.
+- **Instruction/context gaps**: treat them separately from skill-package readiness. If translating `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot instructions, Cursor rules, OpenCode instructions, or Roo rules, merge conservatively and do not overwrite unrelated target instructions.
+- **Cloud runtimes**: local availability does not prove cloud availability. Repository-visible skills, cloud secrets, MCP reachability, and cloud runtime dependencies must be treated explicitly for Cursor Cloud and GitHub Copilot Cloud Agent.
+- **Roo mode-specific skills/rules**: preserve their mode intent. Do not flatten a `skills-code` or `rules-architect` workflow into a generic cross-harness instruction without evidence that the specialization is intentional to remove.
 
 Read [references/SCOPE-AND-CLAIMS.md](references/SCOPE-AND-CLAIMS.md) before presenting success.
 
