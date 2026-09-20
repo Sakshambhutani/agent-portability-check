@@ -19,6 +19,7 @@ export function createReferralId() {
 
 export function buildSharePayload(report, {
   targetCompatibility = null,
+  allCompatibility = null,
   teamCode = '',
 } = {}) {
   return {
@@ -38,6 +39,20 @@ export function buildSharePayload(report, {
     targetDeps: targetCompatibility?.dependencyRiskCount || 0,
     runtime: targetCompatibility?.runtime || 'local',
     targetComplete: Boolean(targetCompatibility?.skillPackagesReady ?? targetCompatibility?.fullyReady),
+    allMode: Boolean(allCompatibility),
+    allTargets: allCompatibility?.targets?.map(item => ({
+      id: item.runtime === 'cloud' ? `${item.target}-cloud` : item.target,
+      ready: item.summary.ready,
+      total: item.summary.total,
+      autoFix: item.summary.autoFix,
+      manual: item.summary.manual,
+      context: item.contextRisks?.length || 0,
+      deps: item.dependencyRiskCount || 0,
+      complete: Boolean(item.skillPackagesReady),
+    })) || [],
+    allComplete: Boolean(allCompatibility?.summary?.allSkillPackagesReady),
+    allTargetsReady: allCompatibility?.summary?.targetsReady || 0,
+    allTargetsTotal: allCompatibility?.summary?.targets || 0,
     team: normalizeTeamCode(teamCode) || null,
   };
 }
@@ -46,6 +61,7 @@ export function createShareInfo(report, {
   publicUrl = process.env.APC_PUBLIC_URL || DEFAULT_PUBLIC_URL,
   referralId = createReferralId(),
   targetCompatibility = null,
+  allCompatibility = null,
   teamCode = '',
 } = {}) {
   if (!publicUrl) return null;
@@ -60,7 +76,7 @@ export function createShareInfo(report, {
   const ref = normalizeReferralId(referralId);
   if (!ref) return null;
 
-  const payload = buildSharePayload(report, { targetCompatibility, teamCode });
+  const payload = buildSharePayload(report, { targetCompatibility, allCompatibility, teamCode });
   const url = new URL(`/r/${ref}`, base);
   url.searchParams.set('v', SHARE_VERSION);
   url.searchParams.set('score', payload.score === null ? 'na' : String(payload.score));
@@ -84,6 +100,26 @@ export function createShareInfo(report, {
     url.searchParams.set('targetComplete', payload.targetComplete ? '1' : '0');
   }
 
+  if (payload.allMode) {
+    url.searchParams.set('mode', 'all');
+    url.searchParams.set('allReady', String(payload.allTargetsReady));
+    url.searchParams.set('allTotal', String(payload.allTargetsTotal));
+    url.searchParams.set('allComplete', payload.allComplete ? '1' : '0');
+    url.searchParams.set(
+      'all',
+      payload.allTargets.map(item => [
+        item.id,
+        item.ready,
+        item.total,
+        item.autoFix,
+        item.manual,
+        item.context,
+        item.deps,
+        item.complete ? 1 : 0,
+      ].join(':')).join(',')
+    );
+  }
+
   return {
     referralId: ref,
     url: url.toString(),
@@ -95,12 +131,16 @@ export function createShareInfo(report, {
 export async function publishShareResult(report, {
   publicUrl = process.env.APC_PUBLIC_URL || DEFAULT_PUBLIC_URL,
   targetCompatibility = null,
+  allCompatibility = null,
   teamCode = '',
   fetchImpl = globalThis.fetch,
   timeoutMs = 2500,
 } = {}) {
+  if (allCompatibility) {
+    return createShareInfo(report, { publicUrl, targetCompatibility, allCompatibility, teamCode });
+  }
   if (typeof fetchImpl !== 'function') {
-    return createShareInfo(report, { publicUrl, targetCompatibility, teamCode });
+    return createShareInfo(report, { publicUrl, targetCompatibility, allCompatibility, teamCode });
   }
 
   let base;
@@ -117,7 +157,7 @@ export async function publishShareResult(report, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify(buildSharePayload(report, { targetCompatibility, teamCode })),
+      body: JSON.stringify(buildSharePayload(report, { targetCompatibility, allCompatibility, teamCode })),
     });
     if (!response.ok) throw new Error('publish_failed');
     const data = await response.json();
@@ -130,7 +170,7 @@ export async function publishShareResult(report, {
       short: true,
     };
   } catch {
-    return createShareInfo(report, { publicUrl, targetCompatibility, teamCode });
+    return createShareInfo(report, { publicUrl, targetCompatibility, allCompatibility, teamCode });
   } finally {
     clearTimeout(timer);
   }
