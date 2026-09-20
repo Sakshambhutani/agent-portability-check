@@ -69,3 +69,30 @@ test('target compatibility achievement takes precedence', () => {
     true,
   );
 });
+
+
+test('all-harness achievement and progress are persisted separately', () => {
+  const allCompatibility = {
+    summary: {
+      targetsReady: 9,
+      targets: 9,
+      manualTargets: 0,
+      contextGapTargets: 2,
+      allSkillPackagesReady: true,
+    },
+  };
+  assert.equal(isAchievement(report(7, 7), null, allCompatibility), true);
+
+  const session = createSession({
+    cwd:'/tmp/project',
+    report:report(7,7),
+    allCompatibility,
+    resultUrl:'https://example.com/r/all',
+  });
+
+  assert.equal(session.all, true);
+  assert.equal(session.achieved, true);
+  assert.equal(session.summary.allTargetsReady, 9);
+  assert.equal(session.summary.allTargetsTotal, 9);
+  assert.equal(session.summary.allContextGapTargets, 2);
+});
