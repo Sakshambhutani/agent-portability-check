@@ -53,7 +53,7 @@ function referencedLocalPaths(content) {
     const value = cleanReferenceTarget(match[1]);
     if (value) found.add(value);
   }
-  for (const match of content.matchAll(/(?<![A-Za-z0-9_}\/(?:scripts|references|assets)\/[A-Za-z0-9._/-]+(?:#[A-Za-z0-9._:-]+)?/g)) {
+  for (const match of content.matchAll(/(?<![A-Za-z0-9_}\/])(?:scripts|references|assets)\/[A-Za-z0-9._/-]+(?:#[A-Za-z0-9._:-]+)?/g)) {
     const value = cleanReferenceTarget(match[0]);
     if (value) found.add(value);
   }
