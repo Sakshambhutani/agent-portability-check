@@ -1,0 +1,15 @@
+{
+  "name": "agent-portability",
+  "interface": {
+    "displayName": "Agent Portability"
+  },
+  "plugins": [
+    {
+      "name": "agent-portability",
+      "source": {
+        "source": "local",
+        "path": "."
+      }
+    }
+  ]
+}
