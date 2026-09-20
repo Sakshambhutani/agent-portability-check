@@ -117,6 +117,12 @@ function collectMcpServersFromJson(value, out = new Set()) {
   if (value.mcp?.servers && typeof value.mcp.servers === 'object') {
     for (const name of Object.keys(value.mcp.servers)) out.add(name);
   }
+  if (value.mcp && typeof value.mcp === 'object' && !Array.isArray(value.mcp)) {
+    for (const [name, config] of Object.entries(value.mcp)) {
+      if (name === 'servers' || !config || typeof config !== 'object' || Array.isArray(config)) continue;
+      if ('command' in config || 'url' in config || 'type' in config) out.add(name);
+    }
+  }
   for (const nested of Object.values(value)) {
     if (nested && typeof nested === 'object') collectMcpServersFromJson(nested, out);
   }
