@@ -21,7 +21,8 @@ export function newSessionId() {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 }
 
-export function isAchievement(report, targetCompatibility = null) {
+export function isAchievement(report, targetCompatibility = null, allCompatibility = null) {
+  if (allCompatibility) return Boolean(allCompatibility.summary?.allSkillPackagesReady);
   if (targetCompatibility) return Boolean(targetCompatibility.skillPackagesReady ?? targetCompatibility.fullyReady);
   return Boolean(
     report?.global?.totalSkills > 0 &&
@@ -30,7 +31,7 @@ export function isAchievement(report, targetCompatibility = null) {
   );
 }
 
-export function sessionSummary(report, targetCompatibility = null) {
+export function sessionSummary(report, targetCompatibility = null, allCompatibility = null) {
   return {
     totalSkills: report?.global?.totalSkills || 0,
     portableReady: report?.global?.portableReadySkills || 0,
@@ -42,6 +43,10 @@ export function sessionSummary(report, targetCompatibility = null) {
     targetManual: targetCompatibility?.summary?.manual ?? null,
     targetContext: targetCompatibility?.contextRisks?.length ?? null,
     targetDependencies: targetCompatibility?.dependencyRiskCount ?? null,
+    allTargetsReady: allCompatibility?.summary?.targetsReady ?? null,
+    allTargetsTotal: allCompatibility?.summary?.targets ?? null,
+    allManualTargets: allCompatibility?.summary?.manualTargets ?? null,
+    allContextGapTargets: allCompatibility?.summary?.contextGapTargets ?? null,
   };
 }
 
@@ -52,18 +57,20 @@ export function createSession({
   team = '',
   report,
   targetCompatibility = null,
+  allCompatibility = null,
   resultUrl = '',
   resultId = '',
 } = {}) {
   const now = new Date().toISOString();
-  const achieved = isAchievement(report, targetCompatibility);
+  const achieved = isAchievement(report, targetCompatibility, allCompatibility);
   return {
-    version: 1,
+    version: 2,
     id: newSessionId(),
     createdAt: now,
     updatedAt: now,
     cwd: path.resolve(cwd || process.cwd()),
     target: target || null,
+    all: Boolean(allCompatibility),
     runtime: runtime === 'cloud' ? 'cloud' : 'local',
     team: safeId(team),
     status: achieved ? 'achieved' : 'scanned',
@@ -72,7 +79,7 @@ export function createSession({
     deferred: false,
     resultUrl: resultUrl || '',
     resultId: safeId(resultId),
-    summary: sessionSummary(report, targetCompatibility),
+    summary: sessionSummary(report, targetCompatibility, allCompatibility),
   };
 }
 
@@ -83,13 +90,14 @@ export function updateSession(session, {
   team,
   report,
   targetCompatibility,
+  allCompatibility,
   resultUrl,
   resultId,
   browserOpened,
   deferred,
 } = {}) {
   const achieved = report
-    ? isAchievement(report, targetCompatibility || null)
+    ? isAchievement(report, targetCompatibility || null, allCompatibility || null)
     : Boolean(session.achieved);
 
   return {
@@ -97,6 +105,7 @@ export function updateSession(session, {
     updatedAt: new Date().toISOString(),
     cwd: cwd ? path.resolve(cwd) : session.cwd,
     target: target !== undefined ? (target || null) : session.target,
+    all: allCompatibility !== undefined ? Boolean(allCompatibility) : Boolean(session.all),
     runtime: runtime ? (runtime === 'cloud' ? 'cloud' : 'local') : session.runtime,
     team: team !== undefined ? safeId(team) : session.team,
     status: achieved ? 'achieved' : 'scanned',
@@ -105,7 +114,7 @@ export function updateSession(session, {
     deferred: deferred !== undefined ? Boolean(deferred) : session.deferred,
     resultUrl: resultUrl !== undefined ? resultUrl : session.resultUrl,
     resultId: resultId !== undefined ? safeId(resultId) : session.resultId,
-    summary: report ? sessionSummary(report, targetCompatibility || null) : session.summary,
+    summary: report ? sessionSummary(report, targetCompatibility || null, allCompatibility || null) : session.summary,
   };
 }
 
