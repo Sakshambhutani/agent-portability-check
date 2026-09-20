@@ -50,6 +50,57 @@ function skillRows(data) {
   return data.statuses.map(s => `<tr><td>${esc(s.name)}</td><td>${s.portableAcrossInstalled ? 'Yes' : 'No'}</td><td>${esc(s.reason)}</td><td>${s.copies.map(c => `<code>${esc(c.path)}</code>`).join('<br>')}</td></tr>`).join('');
 }
 
+
+function allCompatibilityHtml(allCompatibility) {
+  if (!allCompatibility) return '';
+
+  const targetRows = allCompatibility.targets.map(target => {
+    const status = target.skillPackagesReady
+      ? 'Ready'
+      : target.summary.manual > 0
+        ? 'Review'
+        : 'Auto-fix';
+    return `<tr>
+      <td>${esc(target.targetLabel)}</td>
+      <td>${target.summary.ready} / ${target.summary.total}</td>
+      <td>${target.summary.autoFix}</td>
+      <td>${target.summary.manual}</td>
+      <td>${target.contextRisks?.length || 0}</td>
+      <td>${esc(status)}</td>
+    </tr>`;
+  }).join('');
+
+  const targetIds = allCompatibility.targets.map(target =>
+    target.runtime === 'cloud' ? `${target.target}-cloud` : target.target
+  );
+
+  const matrixRows = allCompatibility.matrix.map(row => {
+    const cells = targetIds.map(id => {
+      const cell = row.targets[id];
+      const label = cell?.status === 'ready' ? '✓' : cell?.status === 'auto-fix' ? '⚡' : '✕';
+      return `<td title="${esc(cell?.reason || '')}">${label} ${esc(cell?.status || 'not-found')}</td>`;
+    }).join('');
+    return `<tr><td>${esc(row.scope)}</td><td>${esc(row.name)}</td>${cells}</tr>`;
+  }).join('');
+
+  const headers = allCompatibility.targets.map(target =>
+    `<th>${esc(target.targetLabel)}</th>`
+  ).join('');
+
+  return `<section>
+    <h2>All-harness compatibility</h2>
+    <div class="grid">
+      <div class="metric"><b>${allCompatibility.summary.targetsReady}/${allCompatibility.summary.targets}</b>targets package-ready</div>
+      <div class="metric"><b>${allCompatibility.summary.totalSkills}</b>skills checked</div>
+      <div class="metric"><b>${allCompatibility.summary.manualTargets}</b>targets need review</div>
+      <div class="metric"><b>${allCompatibility.summary.contextGapTargets}</b>targets with context gaps</div>
+    </div>
+    <table><thead><tr><th>Target</th><th>Ready</th><th>Auto-fix</th><th>Manual</th><th>Context</th><th>Status</th></tr></thead><tbody>${targetRows}</tbody></table>
+    <h3>Skill × harness matrix</h3>
+    <div style="overflow-x:auto"><table><thead><tr><th>Scope</th><th>Skill</th>${headers}</tr></thead><tbody>${matrixRows || '<tr><td colspan="11">No skills found.</td></tr>'}</tbody></table></div>
+  </section>`;
+}
+
 function targetCompatibilityHtml(target) {
   if (!target) return '';
   const rows = target.skills.map(skill => {
@@ -78,7 +129,7 @@ function targetCompatibilityHtml(target) {
   </section>`;
 }
 
-export function createHtml(report, { shareUrl = '', targetCompatibility = null } = {}) {
+export function createHtml(report, { shareUrl = '', targetCompatibility = null, allCompatibility = null } = {}) {
   const findingRows = report.findings.map(f => `<li>${esc(f.text)}</li>`).join('');
   const installed = report.installedHarnesses.length
     ? report.installedHarnesses.map(h => `<li><strong>${esc(h.label)}</strong> — ${h.evidence.map(e => esc(e.type + ': ' + e.detail)).join('; ')}</li>`).join('')
@@ -87,13 +138,15 @@ export function createHtml(report, { shareUrl = '', targetCompatibility = null }
     ? report.configFootprints.map(f => `<li><code>${esc(f.path)}</code> — ${esc(f.label)} (${esc(f.scope)})</li>`).join('')
     : '<li>None found.</li>';
   const score = report.global.score === null ? 'N/A' : `${report.global.score}%`;
-  const achievement = targetCompatibility
-    ? Boolean(targetCompatibility.fullyReady)
-    : Boolean(
-        report.global.totalSkills > 0 &&
-        report.global.portableReadyPercent === 100 &&
-        report.global.drift.length === 0
-      );
+  const achievement = allCompatibility
+    ? Boolean(allCompatibility.summary?.allSkillPackagesReady)
+    : targetCompatibility
+      ? Boolean(targetCompatibility.skillPackagesReady ?? targetCompatibility.fullyReady)
+      : Boolean(
+          report.global.totalSkills > 0 &&
+          report.global.portableReadyPercent === 100 &&
+          report.global.drift.length === 0
+        );
   const shareCta = shareUrl
     ? `<p><a class="share" href="${esc(shareUrl)}">${achievement ? 'Open achievement page' : 'Open diagnostic page'} →</a></p>`
     : '';
@@ -103,19 +156,19 @@ export function createHtml(report, { shareUrl = '', targetCompatibility = null }
   </style></head><body><header><div class="eyebrow">AGENT PORTABILITY CHECK</div><h1>How portable is my AI setup?</h1><div class="score">${esc(score)}</div><div class="muted">Global score is shown only when at least two supported agents are detected.</div>${shareCta}</header>
   <section><h2>Agent tools detected</h2><ul>${installed}</ul><h3>Config footprints</h3><ul>${footprints}</ul></section>
   <div class="grid"><div class="metric"><b>${report.global.totalSkills}</b>global skills</div><div class="metric"><b>${report.global.portableAcrossInstalled}</b>across all agents</div><div class="metric"><b>${report.project.totalSkills}</b>project skills</div><div class="metric"><b>${report.global.drift.length + report.project.drift.length}</b>drifted</div></div>
-  <section><h2>What stood out</h2><ul>${findingRows}</ul></section>\n  ${targetCompatibilityHtml(targetCompatibility)}\n  <section><h2>Global skills</h2><table><thead><tr><th>Skill</th><th>Across all detected agents?</th><th>Why</th><th>Copies</th></tr></thead><tbody>${skillRows(report.global)}</tbody></table></section>
+  <section><h2>What stood out</h2><ul>${findingRows}</ul></section>\n  ${targetCompatibilityHtml(targetCompatibility)}\n  ${allCompatibilityHtml(allCompatibility)}\n  <section><h2>Global skills</h2><table><thead><tr><th>Skill</th><th>Across all detected agents?</th><th>Why</th><th>Copies</th></tr></thead><tbody>${skillRows(report.global)}</tbody></table></section>
   <section><h2>This project</h2><p class="muted"><code>${esc(report.cwd)}</code></p><table><thead><tr><th>Skill</th><th>Across all detected agents?</th><th>Why</th><th>Copies</th></tr></thead><tbody>${skillRows(report.project)}</tbody></table></section>
   <section><div class="note"><strong>Privacy:</strong> scan and report generation happen locally. Reports store paths and hashes, not instruction or skill contents.</div></section>
   </body></html>`;
 }
 
-export function writeReports(report, outputDir, { shareUrl = '', targetCompatibility = null } = {}) {
+export function writeReports(report, outputDir, { shareUrl = '', targetCompatibility = null, allCompatibility = null } = {}) {
   fs.mkdirSync(outputDir, { recursive: true });
   const htmlPath = path.join(outputDir, 'agent-portability-report.html');
   const svgPath = path.join(outputDir, 'agent-portability-card.svg');
   const jsonPath = path.join(outputDir, 'agent-portability-report.json');
-  fs.writeFileSync(htmlPath, createHtml(report, { shareUrl, targetCompatibility }));
+  fs.writeFileSync(htmlPath, createHtml(report, { shareUrl, targetCompatibility, allCompatibility }));
   fs.writeFileSync(svgPath, createCardSvg(report, { shareUrl }));
-  fs.writeFileSync(jsonPath, JSON.stringify({ ...report, targetCompatibility }, null, 2));
+  fs.writeFileSync(jsonPath, JSON.stringify({ ...report, targetCompatibility, allCompatibility }, null, 2));
   return { htmlPath, svgPath, jsonPath };
 }
