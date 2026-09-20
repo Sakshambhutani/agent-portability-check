@@ -274,6 +274,8 @@ function gatherSkills(base, scope, cwd, home) {
     for (const file of walkSkillFiles(root)) {
       const content = readText(file) || '';
       const inspection = inspectSkillPackage(file, content);
+      const relativeToRoot = path.relative(root, file).split(path.sep);
+      const harnessManaged = relativeToRoot.includes('.system');
       skills.push({
         name: skillName(file, content),
         owner: spec.owner,
@@ -281,6 +283,7 @@ function gatherSkills(base, scope, cwd, home) {
         path: displayPath(file, cwd, home),
         hash: hashText(content),
         bytes: Buffer.byteLength(content),
+        harnessManaged,
         ...inspection,
       });
     }
@@ -344,8 +347,10 @@ function gatherConfigFootprints(cwd, home) {
 }
 
 function analyzeScope(skills, installedKeys) {
+  const managedSkills = skills.filter(skill => skill.harnessManaged);
+  const userSkills = skills.filter(skill => !skill.harnessManaged);
   const byName = new Map();
-  for (const skill of skills) {
+  for (const skill of userSkills) {
     if (!byName.has(skill.name)) byName.set(skill.name, []);
     byName.get(skill.name).push(skill);
   }
@@ -455,6 +460,8 @@ function analyzeScope(skills, installedKeys) {
     duplicates,
     drift,
     statuses,
+    managedSkillCount: managedSkills.length,
+    managedSkills,
   };
 }
 
@@ -477,6 +484,12 @@ function buildFindings(globalAnalysis, projectAnalysis, installedHarnesses, foot
     });
   }
 
+  if (globalAnalysis.managedSkillCount) {
+    findings.push({
+      level: 'info',
+      text: `${globalAnalysis.managedSkillCount} harness-managed system skill${globalAnalysis.managedSkillCount === 1 ? '' : 's'} excluded from portability readiness.`,
+    });
+  }
   if (globalAnalysis.drift.length) findings.push({ level: 'high', text: `${globalAnalysis.drift.length} global skill${globalAnalysis.drift.length === 1 ? '' : 's'} have same-name copies with different contents.` });
   if (projectAnalysis.drift.length) findings.push({ level: 'high', text: `${projectAnalysis.drift.length} project skill${projectAnalysis.drift.length === 1 ? '' : 's'} have same-name copies with different contents.` });
 
