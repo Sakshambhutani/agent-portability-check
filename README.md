@@ -28,7 +28,21 @@ or:
 Check whether my skills work across Claude, Codex, and Cursor and fix what you safely can.
 ```
 
-The repository is also packaged as a portable Agent Plugin via `plugin.json` with the skill under `skills/agent-portability/`. OpenAI-compatible plugin marketplaces can import the repository package, while Claude Code can use the same skill through its skill/plugin ecosystem.
+The repository is also packaged as:
+- a portable Agent Plugin via `plugin.json` for ChatGPT/Codex plugin packaging;
+- a Claude Code plugin via `.claude-plugin/plugin.json`;
+- a repository marketplace entry under `.agents/plugins/marketplace.json`.
+
+Claude Code can test the repository directly:
+
+```bash
+git clone https://github.com/Sakshambhutani/agent-portability-check.git
+claude --plugin-dir ./agent-portability-check
+```
+
+The plugin skill is then namespaced in Claude Code as `/agent-portability:agent-portability`.
+
+Public directory discovery still requires the normal provider review/submission step. The repository is packaged so the same skill can be submitted without creating a separate implementation for each harness.
 
 Important runtime distinction:
 
