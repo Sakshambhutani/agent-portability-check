@@ -24,15 +24,17 @@ Never declare portability based only on your own inspection. Re-run the checker 
 
 ## Skill freshness
 
-GitHub `main` is the source of truth for this skill. New skills.sh installs receive the current contents, but an already-installed local copy does not automatically refresh.
+GitHub `main` is the source of truth for every distribution path.
 
-If the user asks whether this skill is current, asks for the latest behavior, or the installed workflow appears stale compared with the current checker, tell them to update this skill with:
+If the user installed this skill with the Skills CLI and asks whether it is current, asks for the latest behavior, or the installed workflow appears stale, tell them to update it with:
 
 ```bash
 npx skills update agent-portability
 ```
 
-Do not interrupt every portability run with an update check. Treat updating the skill as a lightweight freshness action, not a prerequisite for using the checker.
+If the skill came from a Claude or ChatGPT GitHub-managed plugin marketplace, use that host's marketplace refresh/sync mechanism instead of assuming the Skills CLI owns the installation. Repository-backed workspace marketplaces may sync updates automatically, while local plugin copies can require a refresh or reinstall.
+
+Do not interrupt every portability run with an update check. Treat freshness as a lightweight maintenance action, not a prerequisite for using the checker.
 
 ## Capability check
 
