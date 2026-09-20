@@ -38,6 +38,12 @@ Do not interrupt every portability run with an update check. Treat updating the 
 
 First determine whether this environment has access to the user's local filesystem and a shell.
 
+Surface-specific guidance:
+
+- **Claude Cowork / Claude Desktop**: perform the workflow directly only when the relevant local folder is connected and the environment can run shell commands. A cloud Cowork session may lose local-file access when Claude Desktop is not available, so verify access before scanning.
+- **ChatGPT Work / Codex / ChatGPT Desktop**: perform the workflow directly when the surface exposes the project filesystem and shell. A normal web chat may have the skill installed but still lack access to the user's laptop.
+- **Claude or ChatGPT without local execution**: use the skill as the orchestration layer, but ask the user to run the private checker locally and return the JSON/output. Never imply that the local machine was inspected remotely.
+
 If local filesystem/shell access is available, perform the workflow directly.
 
 If it is not available, do not claim to have scanned or fixed the user's machine. Give the user the smallest local command needed and offer to interpret the resulting JSON or terminal output:
