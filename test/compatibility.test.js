@@ -194,3 +194,34 @@ test('harness-specific instructions are surfaced as context risks', () => {
   assert.ok(target.contextRisks.some(risk => risk.path.endsWith('CLAUDE.md')));
   assert.ok(target.contextRisks.some(risk => risk.path.endsWith('quality.mdc')));
 });
+
+
+test('target compatibility ignores harness-managed system skills', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.codex/skills/.system/plugin-creator/SKILL.md'), skill('plugin-creator', 'Run scripts/missing.py'));
+  write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+  write(path.join(home, '.claude/skills/review/SKILL.md'), skill('review'));
+  write(path.join(cwd, 'AGENTS.md'), '# Shared instructions');
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'claude', { cwd, home });
+
+  assert.equal(target.summary.total, 1);
+  assert.equal(target.summary.ready, 1);
+  assert.equal(target.skillPackagesReady, true);
+});
+
+test('context gaps do not erase a 100% skill-package achievement', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+  write(path.join(home, '.claude/skills/review/SKILL.md'), skill('review'));
+  write(path.join(home, '.codex/AGENTS.md'), '# Codex-only memory');
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'claude', { cwd, home });
+
+  assert.equal(target.summary.ready, 1);
+  assert.equal(target.contextRisks.length, 1);
+  assert.equal(target.skillPackagesReady, true);
+  assert.equal(target.fullyReady, false);
+});
