@@ -27,6 +27,10 @@ const ALLOWED_EVENTS = new Set([
   'apc_result_saved',
   'apc_identity_signin_started',
   'apc_identity_cta_clicked',
+  'apc_cli_session_resumed',
+  'apc_cli_result_opened',
+  'apc_cli_deferred',
+  'apc_web_resume_clicked',
 ]);
 
 const ALLOWED_PROPERTIES = new Set([

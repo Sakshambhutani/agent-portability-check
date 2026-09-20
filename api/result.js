@@ -1,3 +1,5 @@
+import { supabaseRpc } from '../lib/supabase.js';
+
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -36,24 +38,38 @@ function cleanAgents(value) {
 
 const LABELS = { codex: 'Codex', claude: 'Claude Code', cursor: 'Cursor' };
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   const ref = cleanRef(req.query.ref);
-  const teamCode = cleanTeam(req.query.team);
-  const score = req.query.score === 'na' ? null : intParam(req.query.score, 0, 100, null);
-  const total = intParam(req.query.total, 0, 999, 0);
-  const portable = intParam(req.query.portable, 0, total || 999, 0);
-  const ready = intParam(req.query.ready ?? req.query.shared, 0, total || 999, portable);
-  const drift = intParam(req.query.drift, 0, 999, 0);
-  const agents = cleanAgents(req.query.agents);
-  const target = cleanTarget(req.query.target);
+  let stored = null;
+
+  if (ref && source.total === undefined) {
+    try {
+      stored = await supabaseRpc('apc_public_result_snapshot', { p_code: ref });
+    } catch {}
+    if (!stored) {
+      return res.status(404).send('Result not found.');
+    }
+  }
+
+  const source = stored || req.query;
+  const teamCode = cleanTeam(source.team);
+  const score = source.score === null || source.score === 'na'
+    ? null
+    : intParam(source.score, 0, 100, null);
+  const total = intParam(source.total, 0, 999, 0);
+  const portable = intParam(source.portable, 0, total || 999, 0);
+  const ready = intParam(source.ready ?? source.shared, 0, total || 999, portable);
+  const drift = intParam(source.drift, 0, 999, 0);
+  const agents = cleanAgents(source.agents);
+  const target = cleanTarget(source.target);
   const targetLabel = target ? LABELS[target] : '';
-  const targetTotal = target ? intParam(req.query.targetTotal, 0, 999, total) : 0;
-  const targetReady = target ? intParam(req.query.targetReady, 0, targetTotal || 999, 0) : 0;
-  const targetAuto = target ? intParam(req.query.targetAuto, 0, 999, 0) : 0;
-  const targetManual = target ? intParam(req.query.targetManual, 0, 999, 0) : 0;
-  const targetContext = target ? intParam(req.query.targetContext, 0, 999, 0) : 0;
-  const targetDeps = target ? intParam(req.query.targetDeps, 0, 999, 0) : 0;
-  const runtime = req.query.runtime === 'cloud' ? 'cloud' : 'local';
+  const targetTotal = target ? intParam(source.targetTotal, 0, 999, total) : 0;
+  const targetReady = target ? intParam(source.targetReady, 0, targetTotal || 999, 0) : 0;
+  const targetAuto = target ? intParam(source.targetAuto, 0, 999, 0) : 0;
+  const targetManual = target ? intParam(source.targetManual, 0, 999, 0) : 0;
+  const targetContext = target ? intParam(source.targetContext, 0, 999, 0) : 0;
+  const targetDeps = target ? intParam(source.targetDeps, 0, 999, 0) : 0;
+  const runtime = source.runtime === 'cloud' ? 'cloud' : 'local';
 
   const singleAgent = score === null;
   const readiness = total > 0 ? Math.round(100 * ready / total) : null;
@@ -66,13 +82,13 @@ export default function handler(req, res) {
     targetManual === 0 &&
     targetContext === 0 &&
     targetDeps === 0 &&
-    req.query.targetComplete === '1'
+    (source.targetComplete === '1' || source.targetComplete === true)
   );
   const shareAchievement = targetComplete || portableReady;
 
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const origin = `https://${req.headers.host}`;
-  const canonical = new URL(req.url, origin).toString();
+  const canonical = stored ? `${origin}/r/${ref}` : new URL(req.url, origin).toString();
 
   const checkParams = new URLSearchParams();
   if (ref) checkParams.set('ref', ref);
@@ -296,6 +312,16 @@ async function track(event, extra={}) {
     });
   } catch {}
 }
+
+try {
+  localStorage.setItem('apc_last_result', JSON.stringify({
+    url: location.href,
+    target: ${JSON.stringify(target)},
+    runtime: ${JSON.stringify(runtime)},
+    complete: ${JSON.stringify(shareAchievement)},
+    updatedAt: Date.now()
+  }));
+} catch {}
 
 track('apc_referral_page_opened');
 

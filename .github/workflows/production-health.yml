@@ -23,13 +23,15 @@ jobs:
           done
           exit 1
 
-      - name: Check landing and Cursor Cloud hook
+      - name: Check neutral landing and migration choices
         run: |
           set -euo pipefail
           page="$(curl -fsS https://agent-portability-check.vercel.app/)"
-          echo "$page" | grep -q 'See which skills won’t carry over in 10 seconds'
+          echo "$page" | grep -q 'How portable is your AI setup?'
+          echo "$page" | grep -q 'Check current setup'
+          echo "$page" | grep -q 'Moving to Claude Code'
           echo "$page" | grep -q 'Moving to Cursor Cloud'
-          echo "$page" | grep -q -- '--target claude'
+          echo "$page" | grep -q 'apc_last_result'
 
       - name: Check production telemetry
         run: |
@@ -43,31 +45,37 @@ jobs:
             --data '{"event":"apc_health_check","distinct_id":"github_health_check","properties":{"platform":"ci","agent_count":0}}')"
           echo "$response" | grep -q '"ok":true'
 
-      - name: Check before-state result
+      - name: Create and render a short result
         run: |
           set -euo pipefail
-          url='https://agent-portability-check.vercel.app/r/ci-before?v=6&score=na&total=7&portable=0&ready=2&shared=2&drift=1&agents=codex&target=claude&targetReady=2&targetTotal=7&targetAuto=3&targetManual=2&targetContext=1&targetDeps=1&runtime=local&targetComplete=0'
+          response="$(curl -fsS -X POST https://agent-portability-check.vercel.app/api/result-create \
+            -H 'Content-Type: application/json' \
+            --data '{"score":null,"total":7,"portable":0,"ready":7,"shared":7,"drift":0,"agents":["codex"],"target":"claude","targetReady":7,"targetTotal":7,"targetAuto":0,"targetManual":0,"targetContext":0,"targetDeps":0,"runtime":"local","targetComplete":true}')"
+          echo "$response" | grep -q '"ok":true'
+          url="$(python -c 'import json,sys; print(json.load(sys.stdin)["url"])' <<< "$response")"
+          case "$url" in
+            *\?*) echo "Expected short URL, got $url"; exit 1 ;;
+          esac
+          page="$(curl -fsS "$url")"
+          echo "$page" | grep -q '7 / 7'
+          echo "$page" | grep -q 'ready for Claude Code'
+          echo "$page" | grep -q 'Copy README badge'
+          echo "$page" | grep -q 'apc_last_result'
+
+      - name: Check before-state fallback result
+        run: |
+          set -euo pipefail
+          url='https://agent-portability-check.vercel.app/r/ci-before?v=7&score=na&total=7&portable=0&ready=2&shared=2&drift=1&agents=codex&target=claude&targetReady=2&targetTotal=7&targetAuto=3&targetManual=2&targetContext=1&targetDeps=1&runtime=local&targetComplete=0'
           page="$(curl -fsS "$url")"
           echo "$page" | grep -q 'Copy fix command'
           echo "$page" | grep -q '1 dependency blockers'
           echo "$page" | grep -q '1 context gaps'
 
-      - name: Check completed target trophy page
-        run: |
-          set -euo pipefail
-          url='https://agent-portability-check.vercel.app/r/ci-target?v=6&score=na&total=7&portable=0&ready=7&shared=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1'
-          page="$(curl -fsS "$url")"
-          echo "$page" | grep -q '7 / 7'
-          echo "$page" | grep -q 'Copy README badge'
-          echo "$page" | grep -q 'Open LinkedIn'
-          echo "$page" | grep -q 'teamAction'
-          echo "$page" | grep -q 'og:image'
-
       - name: Check dynamic OG image and README badge
         run: |
           set -euo pipefail
           curl -fsS -D /tmp/og-headers.txt -o /tmp/og-image.bin \
-            'https://agent-portability-check.vercel.app/api/og?v=6&score=na&total=7&portable=0&ready=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1'
+            'https://agent-portability-check.vercel.app/api/og?v=7&score=na&total=7&portable=0&ready=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1'
           grep -Eiq 'content-type: image/(png|webp)' /tmp/og-headers.txt
           test -s /tmp/og-image.bin
 

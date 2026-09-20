@@ -14,19 +14,19 @@ jobs:
         run: |
           npx -y playwright@1.55.0 install --with-deps chromium
 
-      - name: Wait for production page
+      - name: Wait for exact production commit
         run: |
           set -euo pipefail
-          for attempt in {1..18}; do
-            page="$(curl -fsS https://agent-portability-check.vercel.app/ || true)"
-            if echo "$page" | grep -q 'Moving to Cursor Cloud'; then
+          for attempt in {1..30}; do
+            payload="$(curl -fsS https://agent-portability-check.vercel.app/api/version || true)"
+            if echo "$payload" | grep -q "\"commit\":\"$GITHUB_SHA\""; then
               exit 0
             fi
             sleep 10
           done
           exit 1
 
-      - name: Capture landing
+      - name: Capture neutral landing
         run: |
           npx -y playwright@1.55.0 screenshot \
             --browser chromium \
@@ -35,13 +35,22 @@ jobs:
             https://agent-portability-check.vercel.app/ \
             landing.png
 
+      - name: Capture Claude migration deep link
+        run: |
+          npx -y playwright@1.55.0 screenshot \
+            --browser chromium \
+            --viewport-size "1440,1100" \
+            --full-page \
+            'https://agent-portability-check.vercel.app/?target=claude' \
+            target-claude.png
+
       - name: Capture before state
         run: |
           npx -y playwright@1.55.0 screenshot \
             --browser chromium \
             --viewport-size "1440,1100" \
             --full-page \
-            'https://agent-portability-check.vercel.app/r/ui-before?v=6&score=na&total=7&portable=0&ready=2&shared=2&drift=1&agents=codex&target=claude&targetReady=2&targetTotal=7&targetAuto=3&targetManual=2&targetContext=1&targetDeps=1&runtime=local&targetComplete=0' \
+            'https://agent-portability-check.vercel.app/r/ui-before?v=7&score=na&total=7&portable=0&ready=2&shared=2&drift=1&agents=codex&target=claude&targetReady=2&targetTotal=7&targetAuto=3&targetManual=2&targetContext=1&targetDeps=1&runtime=local&targetComplete=0' \
             before.png
 
       - name: Capture trophy
@@ -50,7 +59,7 @@ jobs:
             --browser chromium \
             --viewport-size "1440,1200" \
             --full-page \
-            'https://agent-portability-check.vercel.app/r/ui-trophy?v=6&score=na&total=7&portable=0&ready=7&shared=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1' \
+            'https://agent-portability-check.vercel.app/r/ui-trophy?v=7&score=na&total=7&portable=0&ready=7&shared=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1' \
             trophy.png
 
       - name: Capture team shell
@@ -69,6 +78,7 @@ jobs:
           name: apc-ui-screenshots
           path: |
             landing.png
+            target-claude.png
             before.png
             trophy.png
             team.png

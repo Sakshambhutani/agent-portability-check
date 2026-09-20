@@ -52,6 +52,13 @@
     </div>
 
     <div id="refbox" class="ref"></div>
+    <div id="webResume" class="ref" style="align-items:center;justify-content:space-between;gap:16px">
+      <div>
+        <strong id="webResumeTitle">Continue your last check</strong>
+        <div class="muted" id="webResumeText" style="margin-top:4px">Your previous result is still available.</div>
+      </div>
+      <a id="webResumeLink" class="btn" href="#">Open previous result</a>
+    </div>
 
     <div class="terminal">
       <code id="command">npx github:Sakshambhutani/agent-portability-check</code>
@@ -193,6 +200,39 @@ if (ref || wantsFix) {
   box.textContent = wantsFix
     ? 'This command previews safe fixes first. Nothing is deleted or silently overwritten.'
     : 'You arrived from a shared result. Check your own setup and compare.';
+}
+
+if (!ref && !wantsFix && !team) {
+  try {
+    const previous = JSON.parse(localStorage.getItem('apc_last_result') || 'null');
+    const previousUrl = new URL(previous?.url || '', location.origin);
+    const age = Date.now() - Number(previous?.updatedAt || 0);
+    if (
+      previousUrl.origin === location.origin &&
+      previousUrl.pathname.startsWith('/r/') &&
+      age >= 0 &&
+      age < 30 * 24 * 60 * 60 * 1000
+    ) {
+      const resume = document.getElementById('webResume');
+      const link = document.getElementById('webResumeLink');
+      const title = document.getElementById('webResumeTitle');
+      const text = document.getElementById('webResumeText');
+      resume.style.display = 'flex';
+      link.href = previousUrl.toString();
+      if (previous.complete) {
+        title.textContent = 'Your last achievement is still here';
+        text.textContent = 'Reopen your trophy, share it, or compare with your team.';
+        link.textContent = 'Open trophy →';
+      } else {
+        title.textContent = 'Continue your last portability check';
+        text.textContent = previous.target
+          ? 'Resume your ' + previous.target + ' migration result.'
+          : 'Resume your previous setup check.';
+        link.textContent = 'Continue →';
+      }
+      link.addEventListener('click',()=>track('apc_web_resume_clicked'));
+    }
+  } catch {}
 }
 
 const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());

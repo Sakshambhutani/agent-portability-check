@@ -205,6 +205,57 @@ Team Compare uses Supabase and is hidden unless the deployment has all required 
 
 Anonymous growth analytics and the exact PostHog funnel are documented in [docs/ANALYTICS.md](docs/ANALYTICS.md).
 
+
+## Resumable CLI journey
+
+Every interactive scan now creates a private local session under:
+
+```text
+~/.agent-portability/sessions/
+```
+
+The session stores progress and summary state only. It does not upload skill names or contents.
+
+If a user leaves midway, the next plain run offers to resume:
+
+```text
+Welcome back.
+Last check: 3 / 7 ready for claude
+
+[R] Resume
+[V] View previous result
+[N] New check
+```
+
+Explicit resume:
+
+```bash
+npx github:Sakshambhutani/agent-portability-check --resume
+```
+
+After a normal scan the terminal becomes the primary action surface:
+
+```text
+[F] Fix now
+[T] Test migration
+[V] View result
+[Q] Continue later
+```
+
+After an achievement, the CLI offers to open the trophy directly in the browser. If the user declines, the trophy remains attached to the local session and can be reopened with `--resume`.
+
+## Short public result URLs
+
+The CLI sends only coarse summary metrics to the result service and receives a short random result ID:
+
+```text
+https://agent-portability-check.vercel.app/r/AbC123xyz
+```
+
+The stored public summary does not contain skill names, file paths, repository names, instruction contents, or skill contents. Long self-contained result URLs remain as an offline fallback if publishing is unavailable.
+
+The browser remembers the last result URL in localStorage for 30 days, so returning visitors can reopen an unfinished result or trophy.
+
 ## Privacy
 
 Scanning and fixing happen locally.

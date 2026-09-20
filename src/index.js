@@ -1,11 +1,21 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import { spawnSync } from 'node:child_process';
 import { scan } from './scan.js';
 import { writeReports } from './report.js';
-import { createShareInfo, normalizeReferralId, normalizeTeamCode } from './share.js';
+import { publishShareResult, normalizeReferralId, normalizeTeamCode } from './share.js';
 import { planPortableReadyFix, applyPortableReadyFix } from './fix.js';
 import { analyzeTargetCompatibility, TARGETS } from './compatibility.js';
+import { openBrowser } from './browser.js';
+import {
+  createSession,
+  isAchievement,
+  loadLatestSession,
+  loadSession,
+  saveSession,
+  updateSession,
+} from './session.js';
 import {
   buildScanTelemetry,
   captureTelemetry,
@@ -28,19 +38,29 @@ function parseArgs(argv) {
     target: null,
     runtime: 'local',
     team: '',
+    resume: null,
+    pathProvided: false,
+    targetProvided: false,
+    runtimeProvided: false,
+    teamProvided: false,
+    refProvided: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if ((a === '--path' || a === '-p') && argv[i + 1]) args.cwd = path.resolve(argv[++i]);
+    if ((a === '--path' || a === '-p') && argv[i + 1]) { args.cwd = path.resolve(argv[++i]); args.pathProvided = true; }
     else if ((a === '--output' || a === '-o') && argv[i + 1]) args.output = argv[++i];
     else if (a === '--json') args.json = true;
     else if (a === '--no-write') args.write = false;
     else if (a === '--analytics' && argv[i + 1]) args.analytics = argv[++i].toLowerCase();
-    else if (a === '--ref' && argv[i + 1]) args.ref = normalizeReferralId(argv[++i]);
-    else if (a === '--target' && argv[i + 1]) args.target = argv[++i].toLowerCase();
-    else if (a === '--runtime' && argv[i + 1]) args.runtime = argv[++i].toLowerCase();
-    else if (a === '--team' && argv[i + 1]) args.team = normalizeTeamCode(argv[++i]);
+    else if (a === '--ref' && argv[i + 1]) { args.ref = normalizeReferralId(argv[++i]); args.refProvided = true; }
+    else if (a === '--target' && argv[i + 1]) { args.target = argv[++i].toLowerCase(); args.targetProvided = true; }
+    else if (a === '--runtime' && argv[i + 1]) { args.runtime = argv[++i].toLowerCase(); args.runtimeProvided = true; }
+    else if (a === '--team' && argv[i + 1]) { args.team = normalizeTeamCode(argv[++i]); args.teamProvided = true; }
+    else if (a === '--resume') {
+      args.resume = 'latest';
+      if (argv[i + 1] && !argv[i + 1].startsWith('-')) args.resume = argv[++i];
+    }
     else if (a === '--fix') args.fix = true;
     else if (a === '--yes' || a === '-y') args.yes = true;
     else if (a === '--help' || a === '-h') args.help = true;
@@ -49,7 +69,121 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --runtime <mode>    local (default) or cloud; cloud currently means Cursor Cloud\n      --team <code>       Attach an explicitly joined team invite to the result\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --runtime <mode>    local (default) or cloud; cloud currently means Cursor Cloud\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+}
+
+async function ask(prompt) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return '';
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return (await rl.question(prompt)).trim();
+  } finally {
+    rl.close();
+  }
+}
+
+function applySessionDefaults(args, session) {
+  if (!args.pathProvided && session.cwd) args.cwd = session.cwd;
+  if (!args.targetProvided && session.target) args.target = session.target;
+  if (!args.runtimeProvided && session.runtime) args.runtime = session.runtime;
+  if (!args.teamProvided && session.team) args.team = session.team;
+}
+
+function progressLine(session) {
+  const s = session.summary || {};
+  if (session.target && s.targetTotal != null) {
+    return `${s.targetReady ?? 0} / ${s.targetTotal ?? 0} ready for ${session.target}`;
+  }
+  return `${s.portableReady ?? 0} / ${s.totalSkills ?? 0} portable-ready`;
+}
+
+async function prepareResume(args) {
+  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY && !args.json);
+  let session = null;
+  let resumed = false;
+  let openedPrevious = false;
+
+  if (args.resume) {
+    session = loadSession(args.resume);
+    if (!session) {
+      console.error('No resumable Agent Portability session was found.');
+      process.exitCode = 1;
+      return { handled: true, session: null, resumed: false, openedPrevious: false };
+    }
+    applySessionDefaults(args, session);
+    return { handled: false, session, resumed: true, openedPrevious: false };
+  }
+
+  const hasExplicitIntent =
+    args.fix || args.targetProvided || args.teamProvided || args.refProvided || args.pathProvided;
+  if (!interactive || hasExplicitIntent) {
+    return { handled: false, session: null, resumed: false, openedPrevious: false };
+  }
+
+  const latest = loadLatestSession();
+  if (!latest) return { handled: false, session: null, resumed: false, openedPrevious: false };
+
+  console.log('\nWelcome back.');
+  console.log(`Last check: ${progressLine(latest)}`);
+  if (latest.target) console.log(`Target: ${latest.target}`);
+
+  if (latest.achieved && latest.resultUrl) {
+    const answer = (await ask('\n[O] Open trophy  [R] Rescan  [N] New check\nChoose: ')).toLowerCase();
+    if (answer === 'o' || answer === '') {
+      if (openBrowser(latest.resultUrl)) {
+        console.log('Opening your previous achievement in the browser…');
+        saveSession(updateSession(latest, { browserOpened: true, deferred: false }));
+      } else {
+        console.log('Could not open the browser automatically.');
+        console.log(latest.resultUrl);
+      }
+      return { handled: true, session: latest, resumed: false, openedPrevious: true };
+    }
+    if (answer === 'r') {
+      session = latest;
+      resumed = true;
+      applySessionDefaults(args, session);
+    }
+    return { handled: false, session, resumed, openedPrevious: false };
+  }
+
+  const answer = (await ask('\n[R] Resume  [V] View previous result  [N] New check\nChoose: ')).toLowerCase();
+  if (answer === 'v' && latest.resultUrl) {
+    if (openBrowser(latest.resultUrl)) {
+      console.log('Opening your previous result in the browser…');
+      saveSession(updateSession(latest, { browserOpened: true }));
+    } else {
+      console.log(latest.resultUrl);
+    }
+    return { handled: true, session: latest, resumed: false, openedPrevious: true };
+  }
+  if (answer === 'r' || answer === '') {
+    session = latest;
+    resumed = true;
+    applySessionDefaults(args, session);
+  }
+  return { handled: false, session, resumed, openedPrevious: false };
+}
+
+function runSelf(sessionId, extraArgs = []) {
+  const child = spawnSync(
+    process.execPath,
+    [process.argv[1], '--resume', sessionId, ...extraArgs],
+    { stdio: 'inherit' },
+  );
+  if (typeof child.status === 'number' && child.status !== 0) process.exitCode = child.status;
+}
+
+async function chooseMigrationTarget() {
+  const answer = (await ask(
+    '\nTest migration to:\n' +
+    '[1] Claude Code  [2] Codex  [3] Cursor  [4] Cursor Cloud  [Q] Cancel\nChoose: '
+  )).toLowerCase();
+  if (answer === '1' || answer === 'claude') return { target: 'claude', runtime: 'local' };
+  if (answer === '2' || answer === 'codex') return { target: 'codex', runtime: 'local' };
+  if (answer === '3' || answer === 'cursor') return { target: 'cursor', runtime: 'local' };
+  if (answer === '4' || answer === 'cloud') return { target: 'cursor', runtime: 'cloud' };
+  return null;
 }
 
 function mark(found) { return found ? '✓' : '✕'; }
@@ -209,6 +343,11 @@ async function main() {
     return;
   }
 
+  const resumeState = await prepareResume(args);
+  if (resumeState.handled) return;
+  let localSession = resumeState.session;
+  const sessionResumed = resumeState.resumed;
+
   if (args.target && !TARGETS[args.target]) {
     console.error('Invalid --target value. Use: claude, codex, or cursor.');
     process.exitCode = 1;
@@ -298,7 +437,7 @@ async function main() {
     }
   }
 
-  const shareInfo = createShareInfo(report, { targetCompatibility: targetReport, teamCode: args.team });
+  const shareInfo = await publishShareResult(report, { targetCompatibility: targetReport, teamCode: args.team });
 
   let files = null;
 
@@ -324,12 +463,132 @@ async function main() {
     const out = path.resolve(args.cwd, args.output);
     files = writeReports(report, out, { shareUrl: shareInfo?.url, targetCompatibility: targetReport });
     if (!args.json) {
-      console.log('\nShare card:  ' + files.svgPath);
-      console.log('Full report: ' + files.htmlPath);
-      printShareLink(shareInfo);
+      console.log('\nLocal share card:  ' + files.svgPath);
+      console.log('Local full report: ' + files.htmlPath);
     }
-  } else if (shareInfo && !args.json) {
-    printShareLink(shareInfo);
+  } else if (shareInfo && !args.json && !process.stdout.isTTY) {
+    console.log('Result page: ' + shareInfo.url);
+  }
+
+  const achievedNow = isAchievement(report, targetReport);
+  if (shareInfo) {
+    if (!localSession) {
+      localSession = createSession({
+        cwd: args.cwd,
+        target: args.target,
+        runtime: args.runtime,
+        team: args.team,
+        report,
+        targetCompatibility: targetReport,
+        resultUrl: shareInfo.url,
+        resultId: shareInfo.referralId,
+      });
+    } else {
+      const resultChanged = localSession.resultUrl && localSession.resultUrl !== shareInfo.url;
+      localSession = updateSession(localSession, {
+        cwd: args.cwd,
+        target: args.target,
+        runtime: args.runtime,
+        team: args.team,
+        report,
+        targetCompatibility: targetReport,
+        resultUrl: shareInfo.url,
+        resultId: shareInfo.referralId,
+        browserOpened: resultChanged ? false : localSession.browserOpened,
+        deferred: false,
+      });
+    }
+    saveSession(localSession);
+  }
+
+  let followUp = null;
+  let resultOpenedFromCli = false;
+  let deferredNow = false;
+  const interactive = !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+  if (interactive && shareInfo) {
+    if (achievedNow) {
+      console.log('\n🏆 Achievement unlocked.');
+      const answer = (await ask('Open your result card in the browser? [Y/n] ')).toLowerCase();
+      if (answer !== 'n' && answer !== 'no') {
+        if (openBrowser(shareInfo.url)) {
+          console.log('Opening your result…');
+          resultOpenedFromCli = true;
+          if (localSession) {
+            localSession = updateSession(localSession, { browserOpened: true, deferred: false });
+            saveSession(localSession);
+          }
+        } else {
+          console.log('Could not open the browser automatically.');
+          console.log(shareInfo.url);
+        }
+      } else {
+        deferredNow = true;
+        if (localSession) {
+          localSession = updateSession(localSession, { deferred: true });
+          saveSession(localSession);
+        }
+        console.log('\nYour trophy is saved locally. Reopen it later with:');
+        console.log('npx github:Sakshambhutani/agent-portability-check --resume');
+      }
+    } else if (!args.fix && localSession) {
+      const blockedSkillKeys = targetReport
+        ? targetReport.skills
+            .filter(skill => skill.status === 'manual')
+            .map(skill => `${skill.scope || 'global'}:${skill.name}`)
+        : [];
+      const previewPlan = planPortableReadyFix(report, {
+        cwd: args.cwd,
+        target: args.target,
+        blockedSkillKeys,
+      });
+
+      console.log('\nNext step');
+      console.log('────────────────────────────────────');
+      if (previewPlan.changeCount > 0) {
+        console.log(`I can safely improve ${previewPlan.changeCount} item${previewPlan.changeCount === 1 ? '' : 's'}.`);
+        console.log('Original skills stay untouched and nothing is silently overwritten.');
+      } else if (previewPlan.conflicts.length) {
+        console.log(`${previewPlan.conflicts.length} issue${previewPlan.conflicts.length === 1 ? '' : 's'} need manual attention.`);
+      } else {
+        console.log('No automatic changes are needed right now.');
+      }
+
+      const answer = (await ask(
+        '\n[F] Fix now  [T] Test migration  [V] View result  [Q] Continue later\nChoose: '
+      )).toLowerCase();
+
+      if (answer === 'f' && previewPlan.changeCount > 0) {
+        followUp = { type: 'spawn', args: ['--fix'] };
+      } else if (answer === 't') {
+        const choice = await chooseMigrationTarget();
+        if (choice) {
+          followUp = {
+            type: 'spawn',
+            args: ['--target', choice.target, '--runtime', choice.runtime],
+          };
+        }
+      } else if (answer === 'v') {
+        if (openBrowser(shareInfo.url)) {
+          console.log('Opening your result…');
+          resultOpenedFromCli = true;
+          localSession = updateSession(localSession, { browserOpened: true });
+          saveSession(localSession);
+        } else {
+          console.log(shareInfo.url);
+        }
+      } else {
+        deferredNow = true;
+        localSession = updateSession(localSession, { deferred: true });
+        saveSession(localSession);
+        console.log('\nContinue later with:');
+        console.log('npx github:Sakshambhutani/agent-portability-check --resume');
+      }
+    } else if (!achievedNow && localSession) {
+      deferredNow = true;
+      console.log('\nContinue later with:');
+      console.log('npx github:Sakshambhutani/agent-portability-check --resume');
+    }
   }
 
   const allowPrompt = !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
@@ -354,6 +613,16 @@ async function main() {
       baseProperties.target_dependency_count_bucket = bucket(targetReport.dependencyRiskCount || 0);
       baseProperties.target_runtime = targetReport.runtime || 'local';
       baseProperties.target_complete = Boolean(targetReport.fullyReady);
+    }
+
+    if (sessionResumed) {
+      await captureTelemetry('apc_cli_session_resumed', baseProperties);
+    }
+    if (resultOpenedFromCli) {
+      await captureTelemetry('apc_cli_result_opened', baseProperties);
+    }
+    if (deferredNow) {
+      await captureTelemetry('apc_cli_deferred', baseProperties);
     }
 
     if (args.fix && fixPlan) {
@@ -396,6 +665,10 @@ async function main() {
     } else {
       console.log('Anonymous usage analytics: not configured in this build.\n');
     }
+  }
+
+  if (followUp?.type === 'spawn' && localSession) {
+    runSelf(localSession.id, followUp.args);
   }
 }
 

@@ -18,7 +18,7 @@ function jsFiles(dir) {
   return out;
 }
 
-function render(handler, query = {}) {
+async function render(handler, query = {}) {
   let body = '';
   const res = {
     headers: {},
@@ -28,7 +28,12 @@ function render(handler, query = {}) {
     send(value) { body = String(value); return this; },
     json(value) { body = JSON.stringify(value); return this; },
   };
-  handler({ query, headers: { host: 'agent-portability-check.vercel.app' }, method: 'GET' }, res);
+  await handler({
+    query,
+    url:'/api/test',
+    headers: { host: 'agent-portability-check.vercel.app' },
+    method: 'GET',
+  }, res);
   return body;
 }
 
@@ -68,7 +73,7 @@ test('landing page client script parses', () => {
   for (const [index, script] of scripts.entries()) checkJs(script, 'index.html script ' + index);
 });
 
-test('result page client script parses in before and trophy states', () => {
+test('result page client script parses in before and trophy states', async () => {
   const cases = [
     {
       ref:'before',
@@ -86,15 +91,15 @@ test('result page client script parses in before and trophy states', () => {
     },
   ];
   for (const query of cases) {
-    const html = render(resultHandler, query);
+    const html = await render(resultHandler, query);
     for (const [index, script] of scriptsFromHtml(html).entries()) {
       checkJs(script, 'result page script ' + index);
     }
   }
 });
 
-test('team page client script parses', () => {
-  const html = render(teamPageHandler, { code:'preview-team' });
+test('team page client script parses', async () => {
+  const html = await render(teamPageHandler, { code:'preview-team' });
   const scripts = scriptsFromHtml(html);
   assert.ok(scripts.length >= 1);
   for (const [index, script] of scripts.entries()) checkJs(script, 'team page script ' + index);

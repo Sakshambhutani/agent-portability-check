@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createShareInfo, normalizeReferralId, normalizeTeamCode } from '../src/share.js';
+import { createShareInfo, publishShareResult, normalizeReferralId, normalizeTeamCode } from '../src/share.js';
 
 test('normalizes inbound referral ids', () => {
   assert.equal(normalizeReferralId('abc-123_BAD!!'), 'abc-123_BAD');
@@ -83,4 +83,58 @@ test('normalizes team invite codes and carries them into share URLs', () => {
     teamCode: 'Team_ABC-123',
   });
   assert.match(info.url, /team=Team_ABC-123/);
+});
+
+
+test('publishes a short result URL when the backend succeeds', async () => {
+  const report = {
+    installedHarnesses: [{ key:'codex' }],
+    global: {
+      score: null,
+      totalSkills: 7,
+      portableAcrossInstalled: 0,
+      portableReadySkills: 7,
+      sharedFormatSkills: 7,
+      drift: [],
+    },
+  };
+
+  const info = await publishShareResult(report, {
+    publicUrl: 'https://example.com',
+    fetchImpl: async (_url, options) => {
+      const payload = JSON.parse(options.body);
+      assert.equal(payload.total, 7);
+      assert.equal('skillNames' in payload, false);
+      return {
+        ok: true,
+        async json() { return { code:'short123', url:'https://example.com/r/short123' }; },
+      };
+    },
+  });
+
+  assert.equal(info.short, true);
+  assert.equal(info.referralId, 'short123');
+  assert.equal(info.url, 'https://example.com/r/short123');
+});
+
+test('falls back to a self-contained URL if short publishing fails', async () => {
+  const report = {
+    installedHarnesses: [],
+    global: {
+      score: null,
+      totalSkills: 1,
+      portableAcrossInstalled: 0,
+      portableReadySkills: 0,
+      sharedFormatSkills: 0,
+      drift: [],
+    },
+  };
+
+  const info = await publishShareResult(report, {
+    publicUrl: 'https://example.com',
+    fetchImpl: async () => { throw new Error('offline'); },
+  });
+
+  assert.equal(info.short, false);
+  assert.match(info.url, /total=1/);
 });
