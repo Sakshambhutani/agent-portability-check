@@ -1,9 +1,8 @@
 import {
   cleanDisplayName,
-  newInviteCode,
   requireSupabaseUser,
   supabaseConfig,
-  supabaseRest,
+  supabaseRpc,
 } from '../lib/supabase.js';
 
 export default async function handler(req, res) {
@@ -26,44 +25,23 @@ export default async function handler(req, res) {
     cleanDisplayName(input.display_name) ||
     cleanDisplayName(auth.user.user_metadata?.full_name) ||
     cleanDisplayName(auth.user.user_metadata?.name) ||
+    cleanDisplayName(auth.user.user_metadata?.user_name) ||
     '';
 
   try {
-    const inviteCode = newInviteCode();
-    const teams = await supabaseRest('apc_teams', {
-      method: 'POST',
-      body: {
-        owner_user_id: auth.user.id,
-        name,
-        invite_code: inviteCode,
-        target,
-        runtime,
-      },
-      prefer: 'return=representation',
-    });
-    const team = Array.isArray(teams) ? teams[0] : teams;
-
-    await supabaseRest('apc_team_members', {
-      method: 'POST',
-      body: {
-        team_id: team.id,
-        user_id: auth.user.id,
-        display_name: displayName || null,
-        email: auth.user.email || null,
-      },
-      prefer: 'resolution=merge-duplicates,return=minimal',
-    });
+    const team = await supabaseRpc('apc_create_team', {
+      p_name: name,
+      p_target: target,
+      p_runtime: runtime,
+      p_display_name: displayName || null,
+    }, { token: auth.token });
 
     const origin = `https://${req.headers.host}`;
     return res.status(200).json({
       ok: true,
       team: {
-        id: team.id,
-        name: team.name,
-        invite_code: inviteCode,
-        invite_url: `${origin}/team/${inviteCode}`,
-        target,
-        runtime,
+        ...team,
+        invite_url: `${origin}/team/${team.invite_code}`,
       },
     });
   } catch (error) {

@@ -4,6 +4,25 @@ Team Compare is the optional identified layer after the local scanner has delive
 
 Anonymous scanning does not require an account and does not write to Supabase.
 
+## Live backend
+
+Supabase project:
+
+```text
+mjcuwaydrhzbpspkwhge
+```
+
+The web app uses only the project URL and **publishable** API key. There is no service-role key in Vercel or source code.
+
+All identified writes use the signed-in user's Supabase JWT and narrowly scoped Postgres RPCs:
+
+- `apc_create_team`
+- `apc_join_team`
+- `apc_save_result`
+- `apc_team_snapshot`
+
+The first three require an authenticated user. The snapshot function is accessible through the capability-style team invite code and intentionally returns no email address or user ID.
+
 ## User flow
 
 ```text
@@ -30,95 +49,53 @@ saves summary
 team leaderboard
 ```
 
-## Supabase setup
+## Authentication
 
-Run:
+Email magic-link authentication is supported by the UI.
 
-```sql
-supabase/migrations/001_team_compare.sql
-```
-
-Configure these Vercel environment variables for Production and Preview:
+Before using it in production, configure Supabase Auth URL Configuration with:
 
 ```text
-SUPABASE_URL
-SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+Site URL:
+https://agent-portability-check.vercel.app
+
+Redirect URLs:
+https://agent-portability-check.vercel.app/**
 ```
 
-`SUPABASE_PUBLISHABLE_KEY` is also accepted in place of `SUPABASE_ANON_KEY`.
+GitHub OAuth is optional. If enabled in Supabase Auth, the same UI exposes **Continue with GitHub**.
 
-Never expose `SUPABASE_SERVICE_ROLE_KEY` to browser code.
+## Data stored
 
-The browser receives only the public project URL and public/anon key from `/api/public-config`.
+Only after explicit sign-in:
 
-## Auth providers
-
-Email magic-link sign-in works through Supabase Auth when email auth is enabled.
-
-The UI also supports GitHub OAuth. Configure GitHub as an Auth provider in the Supabase project and add the production and preview callback URLs allowed by the project.
-
-## Data model
-
-### apc_teams
-
-- owner user ID
-- team name
-- random invite code
-- comparison target
-- runtime
-- created timestamp
-
-### apc_team_members
-
-- team
-- authenticated user ID
-- optional display name
-- account email
-- joined timestamp
-
-### apc_saved_results
-
-Only summary metrics:
-
+- Supabase auth user ID
+- account email inside team membership storage
+- optional teammate display name
+- team membership
+- summary readiness metrics
 - target/runtime
-- ready/total
-- auto-fix/manual
-- context gaps
-- dependency blockers
-- portable-ready count
-- total skill count
-- drift count
-- completion state
-- timestamp
+- timestamps
 
-No skill names, file paths, repo names, instruction content, or generated report contents are stored.
+Not stored:
 
-## Routes
+- skill names
+- file paths
+- repository names
+- instruction contents
+- skill contents
+- generated local reports
 
-- `/team/:code` — invite + leaderboard
-- `/api/public-config` — public Supabase browser config
-- `/api/team-create` — authenticated team creation
-- `/api/team-join` — authenticated join
-- `/api/team-data` — capability-link leaderboard data
-- `/api/save-result` — authenticated result save
+## Privacy
 
-## CLI team attribution
+The team invite URL is a capability link. Anyone with the URL can view the summary leaderboard.
 
-A team invite gives a command such as:
+The public leaderboard RPC does not return:
 
-```bash
-npx github:Sakshambhutani/agent-portability-check --target claude --team ABC123
-```
+- emails
+- Supabase user IDs
+- auth metadata
 
-The team code is carried to the public result page so the authenticated user can explicitly choose **Save to team**.
+Joining or saving requires a valid authenticated user JWT.
 
-The team code is not sent to PostHog.
-
-## Privacy model
-
-The invite URL is a capability link. Anyone with the link can view the summary leaderboard, but emails are never returned by the team leaderboard API.
-
-Joining or saving requires Supabase authentication.
-
-For a future private-team mode, add an authorization requirement to `/api/team-data` and require membership before returning the leaderboard.
+PostHog remains anonymous and does not receive team invite codes, names, emails, or GitHub identities.

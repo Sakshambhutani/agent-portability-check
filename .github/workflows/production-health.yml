@@ -82,4 +82,12 @@ jobs:
           team_page="$(curl -fsS https://agent-portability-check.vercel.app/team/preview-team)"
           echo "$team_page" | grep -q 'TEAM COMPARE'
           config="$(curl -fsS https://agent-portability-check.vercel.app/api/public-config)"
-          echo "$config" | grep -q '"configured":'
+          echo "$config" | grep -q '"configured":true'
+          echo "$config" | grep -q 'mjcuwaydrhzbpspkwhge.supabase.co'
+
+          unauth_create="$(curl -sS -o /tmp/team-create.json -w '%{http_code}' \
+            -X POST https://agent-portability-check.vercel.app/api/team-create \
+            -H 'Content-Type: application/json' \
+            --data '{"name":"CI Team"}')"
+          test "$unauth_create" = "401"
+          grep -q 'missing_auth' /tmp/team-create.json
