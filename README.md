@@ -24,6 +24,27 @@ To refresh an existing Skills CLI installation:
 npx skills update agent-portability
 ```
 
+## Agent development lifecycle skill suite
+
+This repository now contains individual skills for the broader agent development lifecycle. Install one by name, or install the whole suite:
+
+```bash
+npx skills@latest add https://github.com/Sakshambhutani/agent-portability-check --all
+```
+
+| Skill | Use it for |
+| --- | --- |
+| `agent-portability` | Check/fix whether skills and context carry across harnesses and runtimes |
+| `agent-diagnostic` | Trace MCPs, tools, CLIs, env requirements, connections, permissions, and runtime blockers |
+| `agent-reproducibility` | Capture the exact model/prompt/skill/tool/runtime identity that produced a run |
+| `agent-change-impact` | Show exactly what changed and relate it to eval deltas |
+| `agent-eval-regression` | Run/compare regression evals after agent changes |
+| `agent-config-drift` | Find divergent versions/configuration across teammates, machines, or harnesses |
+| `agent-release-readiness` | Gate a version before deployment, migration, or team rollout |
+| `team-skill-share` | Share a pinned Git-backed skill with a teammate and verify it in their harness |
+
+Each folder under `skills/` is an independently installable skill. The suite is intentionally composable: diagnostics feed reproducibility; reproducibility makes change impact and drift measurable; evals and portability feed release readiness; team sharing creates the multiplayer loop.
+
 ## Use it inside your agent harness
 
 Then ask your harness naturally:
