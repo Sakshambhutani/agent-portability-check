@@ -58,3 +58,21 @@ test('telemetry relay accepts manual-review and migration-intent events', () => 
     assert.equal(payload?.event, event);
   }
 });
+
+
+test('telemetry relay keeps new harness presence flags', () => {
+  const payload = sanitizeTelemetryPayload({
+    event: 'apc_scan_completed',
+    distinct_id: 'apc_new_harnesses',
+    properties: {
+      has_gemini: true,
+      has_copilot: true,
+      has_opencode: true,
+      has_roo: true,
+    },
+  });
+  assert.equal(payload.properties.has_gemini, true);
+  assert.equal(payload.properties.has_copilot, true);
+  assert.equal(payload.properties.has_opencode, true);
+  assert.equal(payload.properties.has_roo, true);
+});
