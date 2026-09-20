@@ -321,6 +321,65 @@ function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } =
   }
 }
 
+function printAllCompatibility(result, { heading = 'ALL-HARNESS COMPATIBILITY' } = {}) {
+  if (!result) return;
+
+  console.log('\n' + heading);
+  console.log('──────────────────────────────────────────────────────────────────────────────');
+  console.log('Target                         Ready      Auto   Manual  Context  Status');
+  console.log('──────────────────────────────────────────────────────────────────────────────');
+
+  for (const target of result.targets) {
+    const ready = String(target.summary.ready) + '/' + String(target.summary.total);
+    const status = target.skillPackagesReady ? '✓ READY' : target.summary.manual ? '✕ REVIEW' : '⚡ FIX';
+    console.log(
+      target.targetLabel.padEnd(30) +
+      ready.padEnd(11) +
+      String(target.summary.autoFix).padEnd(7) +
+      String(target.summary.manual).padEnd(8) +
+      String(target.contextRisks?.length || 0).padEnd(9) +
+      status
+    );
+  }
+
+  console.log('──────────────────────────────────────────────────────────────────────────────');
+  console.log('Targets package-ready  ' + result.summary.targetsReady + ' / ' + result.summary.targets);
+  console.log('Skills checked          ' + result.summary.totalSkills);
+  console.log('Targets with context    ' + result.summary.contextGapTargets);
+
+  const blockers = result.targets.flatMap(target =>
+    target.skills
+      .filter(skill => skill.status !== 'ready')
+      .map(skill => ({
+        target: target.targetLabel,
+        scope: skill.scope,
+        name: skill.name,
+        status: skill.status,
+        reason: skill.reason,
+      }))
+  );
+
+  if (blockers.length) {
+    console.log('\nWhat still needs work');
+    for (const item of blockers.slice(0, 30)) {
+      const icon = item.status === 'auto-fix' ? '⚡' : '✕';
+      console.log(icon + ' ' + item.target + ' · ' + (item.scope === 'project' ? '[project] ' : '') + item.name);
+      console.log('  ' + item.reason);
+    }
+    if (blockers.length > 30) {
+      console.log('… ' + (blockers.length - 30) + ' more target-specific blocker(s) are in the JSON/HTML report.');
+    }
+  }
+
+  if (result.summary.allSkillPackagesReady) {
+    console.log('\n🏆 ALL SKILL PACKAGES READY ACROSS SUPPORTED HARNESSES');
+    if (result.summary.contextGapTargets) {
+      console.log('⚠ Context differences remain on ' + result.summary.contextGapTargets + ' target surface(s) and are shown separately.');
+    }
+  }
+}
+
+
 function printInstalled(report) {
   const installed = new Map(report.installedHarnesses.map(h => [h.key, h]));
   console.log('\nAgent tools detected');
