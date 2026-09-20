@@ -73,6 +73,17 @@ test('landing page client script parses', () => {
   for (const [index, script] of scripts.entries()) checkJs(script, 'index.html script ' + index);
 });
 
+test('landing page frames portability across harnesses and runtimes', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.match(html, /Your agent works here/);
+  assert.match(html, /data-target="claude"/);
+  assert.match(html, /data-target="codex"/);
+  assert.match(html, /data-target="cursor" data-runtime="cloud"/);
+  assert.match(html, /Cursor Cloud/);
+  assert.match(html, />Understand</);
+  assert.doesNotMatch(html, />Moving to/);
+});
+
 test('result page client script parses in before and trophy states', async () => {
   const cases = [
     {
