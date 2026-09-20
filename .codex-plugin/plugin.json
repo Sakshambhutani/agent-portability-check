@@ -1,0 +1,22 @@
+{
+  "name": "agent-portability",
+  "version": "0.4.0",
+  "description": "Check, fix, and verify AI agent portability across supported harnesses and runtimes.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Portability",
+    "shortDescription": "Check AI agent portability",
+    "longDescription": "Check, fix, and verify whether your AI agent skills, instructions, MCP dependencies, and runtime requirements carry across Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, and supported cloud runtimes.",
+    "developerName": "Agent Labs",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Check skills across multiple AI agent harnesses",
+      "Find instruction, MCP, dependency, and discovery gaps",
+      "Apply safe non-destructive portability fixes",
+      "Verify readiness across local and supported cloud runtimes"
+    ],
+    "websiteURL": "https://agent-portability-check.vercel.app",
+    "supportURL": "https://github.com/Sakshambhutani/agent-portability-check/issues",
+    "defaultPrompt": "Check whether my agent setup is portable across all supported harnesses and fix what you safely can."
+  }
+}
