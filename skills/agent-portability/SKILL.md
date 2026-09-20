@@ -22,6 +22,18 @@ Use this loop:
 
 Never declare portability based only on your own inspection. Re-run the checker after changes.
 
+## Skill freshness
+
+GitHub `main` is the source of truth for this skill. New skills.sh installs receive the current contents, but an already-installed local copy does not automatically refresh.
+
+If the user asks whether this skill is current, asks for the latest behavior, or the installed workflow appears stale compared with the current checker, tell them to update this skill with:
+
+```bash
+npx skills update agent-portability
+```
+
+Do not interrupt every portability run with an update check. Treat updating the skill as a lightweight freshness action, not a prerequisite for using the checker.
+
 ## Capability check
 
 First determine whether this environment has access to the user's local filesystem and a shell.
