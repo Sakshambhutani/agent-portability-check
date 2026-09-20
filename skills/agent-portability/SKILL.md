@@ -42,7 +42,7 @@ First determine whether this environment has access to the user's local filesyst
 
 Surface-specific guidance:
 
-- **Claude Cowork / Claude Desktop**: perform the workflow directly only when the relevant local folder is connected and the environment can run shell commands. A cloud Cowork session may lose local-file access when Claude Desktop is not available, so verify access before scanning.
+- **Claude Cowork / Claude Desktop**: perform project-specific work directly only when the relevant local folder is connected and the environment can run shell commands. A cloud Cowork session may lose local-file access when Claude Desktop is not available, so verify access before project scanning. If a programmatic folder-access request is denied or unsupported once, do not repeatedly retry it; tell the user to use Cowork's **Add folder** picker and continue with any global-only work that is already possible.
 - **ChatGPT Work / Codex / ChatGPT Desktop**: perform the workflow directly when the surface exposes the project filesystem and shell. A normal web chat may have the skill installed but still lack access to the user's laptop.
 - **Claude or ChatGPT without local execution**: use the skill as the orchestration layer, but ask the user to run the private checker locally and return the JSON/output. Never imply that the local machine was inspected remotely.
 
@@ -58,14 +58,22 @@ For a specific target, append one of `--target claude|codex|cursor|gemini|copilo
 
 ## Scope
 
-The checker examines two scopes in one run:
+The checker supports two useful modes:
 
-- **Global/user scope**: skill and instruction locations under the user's home directory.
-- **Current project scope**: agent configuration under the selected working directory/repository.
+- **Global/user readiness**: home-level skills, instructions, harness configs, and detected tools. Use this when the user asks for "general readiness", "my setup", or similar and no repository is connected.
+- **Global + current project**: the same home-level setup plus project-specific skills/instructions/configuration under a selected repository.
 
-The directory matters for project-specific skills and instructions, but global skills are scanned regardless of the current project.
+For a global-only check, do **not** require or request a project folder first. Run:
 
-Determine the project root before scanning:
+```bash
+npx github:Sakshambhutani/agent-portability-check \
+  --global-only \
+  --json --no-write --no-publish
+```
+
+State clearly that project scope was skipped and offer a project scan only if the user wants repository-specific readiness.
+
+For a project-aware scan, determine the project root:
 
 ```bash
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -77,7 +85,15 @@ Do not imply that a global-only result is repository-specific.
 
 ## Step 1: Run a private machine-readable diagnostic
 
-General scan:
+General global-only scan (no repo required):
+
+```bash
+npx github:Sakshambhutani/agent-portability-check \
+  --global-only \
+  --json --no-write --no-publish
+```
+
+Project-aware scan:
 
 ```bash
 npx github:Sakshambhutani/agent-portability-check \

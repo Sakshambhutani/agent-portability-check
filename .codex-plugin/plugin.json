@@ -1,6 +1,6 @@
 {
   "name": "agent-portability",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Check, fix, and verify AI agent portability across supported harnesses and runtimes.",
   "skills": "./skills/",
   "interface": {

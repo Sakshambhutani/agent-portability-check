@@ -322,17 +322,20 @@ function walkRuleFiles(root, owner, scope, cwd, home, kind) {
   return out;
 }
 
-function gatherRules(cwd, home) {
+function gatherRules(cwd, home, { includeProject = true } = {}) {
   const rules = [
     ...walkRuleFiles(path.join(home, '.cursor/rules'), 'cursor', 'global', cwd, home, 'cursor-rule'),
-    ...walkRuleFiles(path.join(cwd, '.cursor/rules'), 'cursor', 'project', cwd, home, 'cursor-rule'),
     ...walkRuleFiles(path.join(home, '.copilot/instructions'), 'copilot', 'global', cwd, home, 'copilot-instruction'),
-    ...walkRuleFiles(path.join(cwd, '.github/instructions'), 'copilot', 'project', cwd, home, 'copilot-instruction'),
     ...walkRuleFiles(path.join(home, '.roo/rules'), 'roo', 'global', cwd, home, 'roo-rule'),
-    ...walkRuleFiles(path.join(cwd, '.roo/rules'), 'roo', 'project', cwd, home, 'roo-rule'),
+    ...(includeProject ? [
+      ...walkRuleFiles(path.join(cwd, '.cursor/rules'), 'cursor', 'project', cwd, home, 'cursor-rule'),
+      ...walkRuleFiles(path.join(cwd, '.github/instructions'), 'copilot', 'project', cwd, home, 'copilot-instruction'),
+      ...walkRuleFiles(path.join(cwd, '.roo/rules'), 'roo', 'project', cwd, home, 'roo-rule'),
+    ] : []),
   ];
 
-  for (const [base, scope] of [[home, 'global'], [cwd, 'project']]) {
+  const rooBases = includeProject ? [[home, 'global'], [cwd, 'project']] : [[home, 'global']];
+  for (const [base, scope] of rooBases) {
     const rooDir = path.join(base, '.roo');
     if (!exists(rooDir)) continue;
     let entries = [];
@@ -345,15 +348,17 @@ function gatherRules(cwd, home) {
   return rules;
 }
 
-function gatherConfigFootprints(cwd, home) {
+function gatherConfigFootprints(cwd, home, { includeProject = true } = {}) {
   const footprints = [];
   const seen = new Set();
-  for (const spec of configPathSpecs('project')) {
-    const file = path.join(cwd, spec.rel);
-    const id = `project:${spec.key}:${file}`;
-    if (!seen.has(id) && exists(file)) {
-      seen.add(id);
-      footprints.push({ key: spec.key, label: spec.label, scope: 'project', path: displayPath(file, cwd, home) });
+  if (includeProject) {
+    for (const spec of configPathSpecs('project')) {
+      const file = path.join(cwd, spec.rel);
+      const id = `project:${spec.key}:${file}`;
+      if (!seen.has(id) && exists(file)) {
+        seen.add(id);
+        footprints.push({ key: spec.key, label: spec.label, scope: 'project', path: displayPath(file, cwd, home) });
+      }
     }
   }
   for (const spec of configPathSpecs('global')) {
@@ -505,9 +510,16 @@ function buildFindings(globalAnalysis, projectAnalysis, installedHarnesses, foot
   return findings;
 }
 
-export function scan({ cwd = process.cwd(), home = os.homedir(), installedHarnesses: installedOverride } = {}) {
+export function scan({
+  cwd = process.cwd(),
+  home = os.homedir(),
+  installedHarnesses: installedOverride,
+  scope = 'both',
+} = {}) {
   cwd = path.resolve(cwd);
   home = path.resolve(home);
+  if (!['both', 'global'].includes(scope)) throw new Error('Unsupported scan scope. Use both or global.');
+  const includeProject = scope === 'both';
 
   const installedHarnesses = installedOverride
     ? installedOverride.map(key => ({ key, label: HARNESS_DEFINITIONS[key]?.label || key, evidence: [{ type: 'test-override', detail: key }] }))
@@ -515,14 +527,14 @@ export function scan({ cwd = process.cwd(), home = os.homedir(), installedHarnes
   const installedKeys = installedHarnesses.map(h => h.key);
 
   const globalSkills = gatherSkills(home, 'global', cwd, home);
-  const projectSkills = gatherSkills(cwd, 'project', cwd, home);
+  const projectSkills = includeProject ? gatherSkills(cwd, 'project', cwd, home) : [];
   const instructions = [
     ...gatherInstructions(home, 'global', instructionSpecs('global'), cwd, home),
-    ...gatherInstructions(cwd, 'project', instructionSpecs('project'), cwd, home),
+    ...(includeProject ? gatherInstructions(cwd, 'project', instructionSpecs('project'), cwd, home) : []),
   ];
-  const rules = gatherRules(cwd, home);
+  const rules = gatherRules(cwd, home, { includeProject });
   const cursorRules = rules.filter(rule => rule.owner === 'cursor');
-  const configFootprints = gatherConfigFootprints(cwd, home);
+  const configFootprints = gatherConfigFootprints(cwd, home, { includeProject });
 
   const globalAnalysis = analyzeScope(globalSkills, installedKeys);
   const projectAnalysis = analyzeScope(projectSkills, installedKeys);
@@ -532,6 +544,8 @@ export function scan({ cwd = process.cwd(), home = os.homedir(), installedHarnes
     version: 3,
     generatedAt: new Date().toISOString(),
     cwd,
+    scopeMode: scope,
+    projectScopeSkipped: !includeProject,
     privacy: 'local-only',
     installedHarnesses,
     configFootprints,

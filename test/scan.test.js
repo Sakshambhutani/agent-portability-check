@@ -191,3 +191,41 @@ test('discovers Roo mode-specific skills', () => {
   assert.equal(skill.owner, 'roo');
   assert.equal(skill.mode, 'code');
 });
+
+
+test('global-only scan skips project skills, instructions, rules, and footprints', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/global-review/SKILL.md'), validSkill('global-review'));
+  write(path.join(cwd, '.agents/skills/project-review/SKILL.md'), validSkill('project-review'));
+  write(path.join(home, '.gemini/GEMINI.md'), 'global instructions');
+  write(path.join(cwd, 'GEMINI.md'), 'project instructions');
+  write(path.join(home, '.cursor/rules/global.mdc'), 'global rule');
+  write(path.join(cwd, '.cursor/rules/project.mdc'), 'project rule');
+  write(path.join(home, '.gemini/settings.json'), '{}');
+  write(path.join(cwd, '.gemini/settings.json'), '{}');
+
+  const r = scan({
+    cwd,
+    home,
+    installedHarnesses: ['gemini', 'cursor'],
+    scope: 'global',
+  });
+
+  assert.equal(r.scopeMode, 'global');
+  assert.equal(r.projectScopeSkipped, true);
+  assert.equal(r.global.totalSkills, 1);
+  assert.equal(r.project.totalSkills, 0);
+  assert.equal(r.project.skills.length, 0);
+  assert.equal(r.instructions.every(item => item.scope === 'global'), true);
+  assert.equal(r.rules.every(item => item.scope === 'global'), true);
+  assert.equal(r.configFootprints.every(item => item.scope === 'global'), true);
+  assert.equal(JSON.stringify(r).includes('project-review'), false);
+});
+
+test('scan rejects unsupported scope values', () => {
+  const { cwd, home } = fixture();
+  assert.throws(
+    () => scan({ cwd, home, scope: 'project-only' }),
+    /Unsupported scan scope/,
+  );
+});
