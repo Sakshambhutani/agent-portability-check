@@ -100,8 +100,8 @@ Run with --fix to preview safe changes.</pre>
 
     <div class="trophy">
       <div class="eyebrow">THE VIRAL OBJECT</div>
-      <strong>7 / 7 ready for Claude Code 🏆</strong>
-      <p>The result becomes share-first only after the setup passes. Share it on LinkedIn/X, add the badge to a README, or challenge a teammate to check theirs.</p>
+      <strong id="viralObjectTitle">100% portable-ready 🏆</strong>
+      <p id="viralObjectText">Turn a portable setup into a shareable achievement, README badge, or team challenge.</p>
     </div>
   </main>
 </div>
@@ -122,6 +122,8 @@ const commandEl = document.getElementById('command');
 const copyEl = document.getElementById('copy');
 const exampleHead = document.getElementById('exampleHead');
 const exampleText = document.getElementById('exampleText');
+const viralObjectTitle = document.getElementById('viralObjectTitle');
+const viralObjectText = document.getElementById('viralObjectText');
 let selectedTarget = initialTarget;
 let selectedRuntime = initialRuntime;
 
@@ -145,9 +147,13 @@ function updateUI() {
     const label = labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '');
     heroTitle.textContent = 'Moving to ' + label + '? See what won’t carry over.';
     heroLead.innerHTML = 'Run a local compatibility check before you move. See what is <strong>Ready</strong>, what can be <strong>Auto-fixed</strong>, and what needs <strong>Manual attention</strong>.';
+    viralObjectTitle.textContent = '7 / 7 ready for ' + label + ' 🏆';
+    viralObjectText.textContent = 'Once the target check passes, the result becomes a shareable trophy, README badge, or teammate challenge.';
   } else {
     heroTitle.textContent = 'How portable is your AI setup?';
     heroLead.innerHTML = 'Check your current setup, or simulate a move between Codex, Claude Code, and Cursor. See what is <strong>Ready</strong>, <strong>Auto-fix</strong>, or needs <strong>Manual attention</strong>.';
+    viralObjectTitle.textContent = '100% portable-ready 🏆';
+    viralObjectText.textContent = 'Turn a portable setup into a shareable achievement, README badge, or team challenge.';
   }
 
   if (selectedTarget) {
