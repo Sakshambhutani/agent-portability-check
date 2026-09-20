@@ -2,11 +2,11 @@
 
 **Using more than one AI coding environment? Check whether your skills, instructions, MCP tools, and dependencies work across all of them.**
 
-Agent Portability Check covers cross-harness compatibility and runtime changes. Use it when you are switching between Claude Code, Codex, and Cursor, checking local versus cloud behavior, or setting up the same agent workflow on another machine.
+Agent Portability Check covers cross-harness compatibility and runtime changes. It verifies user-controlled skills across Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, and Roo Code, with cloud-runtime checks for Cursor and GitHub Copilot.
 
 Public site: https://agent-portability-check.vercel.app
 
-## Use it inside Claude, Codex, or ChatGPT
+## Use it inside your agent harness
 
 The CLI is the deterministic verifier. The `agent-portability` skill lets an AI harness inspect the report, investigate ambiguous blockers, make evidence-backed repairs, and then re-run the checker.
 
@@ -25,7 +25,7 @@ Make my agent setup portable to Claude.
 or:
 
 ```text
-Check whether my skills work across Claude, Codex, and Cursor and fix what you safely can.
+Check whether my skills work across Claude, Codex, Cursor, Gemini, Copilot, OpenCode, and Roo and fix what you safely can.
 ```
 
 The repository is also packaged as:
@@ -62,6 +62,14 @@ Targets:
 --target claude
 --target codex
 --target cursor
+--target gemini
+--target copilot
+--target opencode
+--target roo
+
+# Cloud-runtime checks
+--target cursor --runtime cloud
+--target copilot --runtime cloud
 ```
 
 Example:
@@ -100,7 +108,7 @@ Safe remediation can:
 
 - copy a canonical valid skill package into `~/.agents/skills`
 - preserve the **entire skill directory**, including scripts/references/assets
-- add a Claude-side discovery adapter when needed
+- add harness-specific discovery adapters when the target needs one
 - leave original copies untouched
 - refuse to overwrite an existing target
 - refuse to auto-resolve drifted copies
@@ -164,8 +172,8 @@ The target simulator checks **skill-package compatibility**, including:
 - referenced local CLI/interpreter availability
 - required environment variable presence (names only; never values)
 - explicit MCP server references against target config
-- local-only vs Cursor Cloud skill availability
-- harness-specific instruction gaps such as `CLAUDE.md`, `AGENTS.md`, and Cursor rules
+- local-only vs cloud-runtime skill availability
+- harness-specific instruction gaps such as `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, Copilot instructions, Cursor rules, OpenCode instructions, and Roo rules
 - whether a location/discovery fix is safe to automate
 
 The result is:
@@ -189,7 +197,7 @@ A structurally ready skill package can still fail at runtime because of:
 - hidden runtime configuration
 - cloud-vs-local differences
 
-So the product says **"skills ready for Claude/Codex/Cursor"**, not "the agents will behave identically."
+So the product says **"skill packages ready for <target>"**, not "the agents will behave identically."
 
 ## General portability scan
 
@@ -366,8 +374,8 @@ The public/CLI flow can emit anonymous events such as:
 ```text
 -p, --path <dir>       Project to scan
 -o, --output <dir>     Report folder
-    --target <agent>    claude | codex | cursor
-    --runtime <mode>    local | cloud (Cursor Cloud)
+    --target <agent>    claude | codex | cursor | gemini | copilot | opencode | roo
+    --runtime <mode>    local | cloud (Cursor / Copilot cloud targets)
     --team <code>       Attach an explicitly joined team invite
     --resume [id]       Resume latest or named local session
     --fix              Preview/apply safe fixes
