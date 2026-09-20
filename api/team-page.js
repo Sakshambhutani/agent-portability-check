@@ -55,7 +55,7 @@ export default function handler(req, res) {
         <input id="email" type="email" placeholder="Work email">
         <button id="emailLogin" class="btn">Email me a sign-in link</button>
       </div>
-      <div class="actions"><button id="githubLogin" class="btn secondary">Continue with GitHub</button></div>
+      <div class="actions"><button id="githubLogin" class="btn secondary hidden">Continue with GitHub</button></div>
     </div>
 
     <div id="signedIn" class="hidden">
@@ -160,6 +160,8 @@ async function setupAuth() {
     $('signedOut').classList.add('hidden');
     return;
   }
+
+  if (config.githubEnabled) $('githubLogin').classList.remove('hidden');
 
   const module = await import('https://esm.sh/@supabase/supabase-js@2');
   supabase = module.createClient(config.url, config.anonKey, {

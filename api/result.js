@@ -375,6 +375,7 @@ async function setupIdentity() {
 
     identityConfigured = true;
     teamActionEl.classList.remove('hidden');
+    if (config.githubEnabled) document.getElementById('identityGithubLogin')?.classList.remove('hidden');
     const module = await import('https://esm.sh/@supabase/supabase-js@2');
     identitySupabase = module.createClient(config.url, config.anonKey, {
       auth:{persistSession:true,detectSessionInUrl:true},
