@@ -19,6 +19,8 @@ apc_fix_previewed
   ↓
 apc_fix_applied
   ↓
+apc_manual_issues_reviewed (when blockers remain)
+  ↓
 apc_portable_ready_achieved
   ↓
 apc_share_link_generated
@@ -31,12 +33,13 @@ apc_referred_scan_completed
 Target migration adds:
 
 - `apc_target_selected`
+- `apc_migration_test_selected`
 - target_agent
 - target_runtime
 - target readiness/auto-fix/manual count buckets
 - target_complete
 
-Sharing adds:
+Sharing is achievement-gated and adds:
 
 - `apc_linkedin_share_clicked`
 - `apc_x_share_clicked`
@@ -96,7 +99,10 @@ Recommended tiles:
 8. **Team activation**
    - funnel: `apc_team_page_viewed → apc_team_joined → apc_team_result_saved`
 
-9. **Identity conversion**
+9. **Manual blocker engagement**
+   - funnel: `apc_fix_applied → apc_manual_issues_reviewed → apc_portable_ready_achieved`
+
+10. **Identity conversion**
    - funnel: `apc_identity_cta_clicked → apc_identity_signin_started → apc_result_saved`
 
 ## Identified lead loop — Supabase
