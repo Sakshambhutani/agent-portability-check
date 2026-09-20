@@ -21,6 +21,7 @@ test('portable plugin manifest and agent-portability skill are valid', () => {
   const content = fs.readFileSync(skillPath, 'utf8');
   assert.match(content, /^---\nname: agent-portability\ndescription: .+\n---/);
   assert.match(content, /--no-publish/);
+  assert.match(content, /--all/);
   assert.match(content, /references\/REMEDIATION\.md/);
   assert.match(content, /references\/SCOPE-AND-CLAIMS\.md/);
 
@@ -43,4 +44,5 @@ test('CLI exposes local-only no-publish mode', () => {
   });
   assert.equal(result.status, 0);
   assert.match(result.stdout, /--no-publish/);
+  assert.match(result.stdout, /--all/);
 });
