@@ -95,27 +95,32 @@ export function extractCommands(content) {
 export function extractEnvVars(content) {
   const required = new Set();
   const optional = new Set();
+
+  const add = (name, index, explicitOptional = false) => {
+    if (COMMON_ENV.has(name)) return;
+    const context = nearbyContext(content, index);
+    if (explicitOptional || (!looksRequiredContext(context) && looksOptionalContext(context))) optional.add(name);
+    else required.add(name);
+  };
+
   for (const match of content.matchAll(/\$\{([A-Z][A-Z0-9_]*)(?::-([^}]*))?\}/g)) {
-    if (COMMON_ENV.has(match[1])) continue;
-    if (match[2] !== undefined) optional.add(match[1]);
-    else required.add(match[1]);
+    add(match[1], match.index, match[2] !== undefined);
   }
   for (const match of content.matchAll(/\$\{env:([A-Z][A-Z0-9_]*)\}/g)) {
-    if (!COMMON_ENV.has(match[1])) required.add(match[1]);
+    add(match[1], match.index);
   }
   for (const regex of [
     /\bprocess\.env\.([A-Z][A-Z0-9_]*)\b/g,
     /\bos\.getenv\(\s*["']([A-Z][A-Z0-9_]*)["']\s*\)/g,
     /\bgetenv\(\s*["']([A-Z][A-Z0-9_]*)["']\s*\)/g,
   ]) {
-    for (const match of content.matchAll(regex)) {
-      if (!COMMON_ENV.has(match[1])) required.add(match[1]);
-    }
+    for (const match of content.matchAll(regex)) add(match[1], match.index);
   }
   for (const match of content.matchAll(/(^|[^$\{])\$([A-Z][A-Z0-9_]*)\b/gm)) {
-    if (!COMMON_ENV.has(match[2])) required.add(match[2]);
+    add(match[2], match.index);
   }
-  for (const name of optional) required.delete(name);
+
+  for (const name of required) optional.delete(name);
   return { required: [...required].sort(), optional: [...optional].sort() };
 }
 
@@ -264,21 +269,30 @@ export function extractScriptInterpreters(resolvedReferences) {
 }
 
 export function evaluateDependencies({ content, resolvedReferences, target, runtime, env, commandCheck, mcpServers }) {
-  const commands = new Set([...extractCommands(content), ...extractScriptInterpreters(resolvedReferences)]);
+  const classifiedCommands = classifyCommands(content);
+  const scriptInterpreters = extractScriptInterpreters(resolvedReferences);
+  const requiredCommands = new Set([...classifiedCommands.required, ...scriptInterpreters]);
+  const optionalCommands = new Set(classifiedCommands.optional.filter(name => !requiredCommands.has(name)));
   const envVars = extractEnvVars(content);
   const mcpRefs = extractMcpServers(content);
   const blockers = [];
 
-  const commandResults = [...commands].sort().map(name => {
-    if (runtime === 'cloud') {
-      const label = harnessDefinition(target)?.cloudLabel || `${harnessDefinition(target)?.label || target} Cloud`;
-      blockers.push(`${label} must provide CLI "${name}"; a local install does not prove cloud availability.`);
-      return { name, available: null, needsSetup: true, runtime: 'cloud' };
-    }
-    const available = Boolean(commandCheck(name));
-    if (!available) blockers.push(`Required CLI "${name}" was not found on this machine.`);
-    return { name, available, needsSetup: !available, runtime: 'local' };
-  });
+  const commandResults = [
+    ...[...requiredCommands].sort().map(name => {
+      if (runtime === 'cloud') {
+        const label = harnessDefinition(target)?.cloudLabel || `${harnessDefinition(target)?.label || target} Cloud`;
+        blockers.push(`${label} must provide CLI "${name}"; a local install does not prove cloud availability.`);
+        return { name, required: true, available: null, needsSetup: true, runtime: 'cloud' };
+      }
+      const available = Boolean(commandCheck(name));
+      if (!available) blockers.push(`Required CLI "${name}" was not found on this machine.`);
+      return { name, required: true, available, needsSetup: !available, runtime: 'local' };
+    }),
+    ...[...optionalCommands].sort().map(name => {
+      const available = runtime === 'cloud' ? null : Boolean(commandCheck(name));
+      return { name, required: false, available, needsSetup: false, runtime };
+    }),
+  ];
 
   const environment = [
     ...envVars.required.map(name => {
@@ -291,7 +305,12 @@ export function evaluateDependencies({ content, resolvedReferences, target, runt
       if (!available) blockers.push(`Required environment variable "${name}" is not set.`);
       return { name, required: true, available, needsCloudSecret: false };
     }),
-    ...envVars.optional.map(name => ({ name, required: false, available: Boolean(env[name]), needsCloudSecret: false })),
+    ...envVars.optional.map(name => ({
+      name,
+      required: false,
+      available: runtime === 'cloud' ? null : Boolean(env[name]),
+      needsCloudSecret: false,
+    })),
   ];
 
   const mcpKey = target === 'cursor' && runtime === 'cloud' ? 'cursorCloud' : target;
@@ -309,5 +328,15 @@ export function evaluateDependencies({ content, resolvedReferences, target, runt
     return { name, available, runtime };
   });
 
-  return { blockers, commands: commandResults, environment, mcpServers: mcpResults };
+  return {
+    blockers,
+    commands: commandResults,
+    environment,
+    mcpServers: mcpResults,
+    evidence: {
+      commandRequirementClassification: true,
+      authenticationTested: false,
+      executionTested: false,
+    },
+  };
 }
