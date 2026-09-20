@@ -592,7 +592,9 @@ async function main() {
       allCompatibility: allReport,
     });
     if (!args.json) {
-      const cardLabel = isAchievement(report, targetReport) ? 'Local achievement card:' : 'Local diagnostic card:';
+      const cardLabel = (allReport ? allReport.summary.allSkillPackagesReady : isAchievement(report, targetReport))
+        ? 'Local achievement card:'
+        : 'Local diagnostic card:';
       console.log('\n' + cardLabel.padEnd(24) + files.svgPath);
       console.log('Local full report:       ' + files.htmlPath);
     }
@@ -677,7 +679,8 @@ async function main() {
       const previewPlan = planPortableReadyFix(report, {
         cwd: args.cwd,
         target: args.target,
-        blockedSkillKeys,
+        targets: args.all ? targetKeys() : [],
+        blockedSkillKeys: args.all ? [] : blockedSkillKeys,
       });
 
       console.log('\nNext step');
@@ -693,7 +696,7 @@ async function main() {
       } else {
         console.log('No automatic changes are needed right now.');
       }
-      if (!args.target && report.installedHarnesses.length === 1) {
+      if (!args.target && !args.all && report.installedHarnesses.length === 1) {
         console.log('You can still test whether this setup is ready for Claude Code, Codex, Cursor, or Cursor Cloud.');
       }
 
@@ -766,6 +769,14 @@ async function main() {
       baseProperties.target_dependency_count_bucket = bucket(targetReport.dependencyRiskCount || 0);
       baseProperties.target_runtime = targetReport.runtime || 'local';
       baseProperties.target_complete = Boolean(targetReport.fullyReady);
+    }
+    if (allReport) {
+      baseProperties.target_agent = 'all';
+      baseProperties.target_runtime = 'all';
+      baseProperties.target_complete = Boolean(allReport.summary.allSkillPackagesReady);
+      baseProperties.target_ready_count_bucket = String(allReport.summary.targetsReady);
+      baseProperties.target_manual_count_bucket = String(allReport.summary.manualTargets);
+      baseProperties.target_context_count_bucket = String(allReport.summary.contextGapTargets);
     }
 
     if (sessionResumed) {
