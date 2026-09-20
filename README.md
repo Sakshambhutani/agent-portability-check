@@ -231,6 +231,14 @@ Without a target:
 npx github:Sakshambhutani/agent-portability-check
 ```
 
+If you only want home-level harness readiness and do not have a project/repository connected:
+
+```bash
+npx github:Sakshambhutani/agent-portability-check --global-only
+```
+
+`--global-only` inspects user-level skills, instructions, configs, and detected harnesses while explicitly skipping project files. This is useful in Claude Cowork or other hosted surfaces before a local repository is connected.
+
 The CLI separates:
 
 - installed agent tools
@@ -400,6 +408,7 @@ The public/CLI flow can emit anonymous events such as:
 -o, --output <dir>     Report folder
     --target <agent>    claude | codex | cursor | gemini | copilot | opencode | roo
     --all               Check all supported local + cloud harness surfaces
+    --global-only       Skip project files; check user/home setup only
     --runtime <mode>    local | cloud (Cursor / Copilot cloud targets)
     --team <code>       Attach an explicitly joined team invite
     --resume [id]       Resume latest or named local session
