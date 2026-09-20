@@ -36,46 +36,92 @@ function parseFrontmatter(content) {
   };
 }
 
+function cleanReferenceTarget(value) {
+  let clean = String(value || '').trim().split(/\s+/)[0];
+  if (!clean || clean.startsWith('#')) return null;
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/i.test(clean)) return null;
+  if (clean.includes('*') || clean.includes('<') || clean.includes('>')) return null;
+  clean = clean.split('#')[0].split('?')[0].replace(/[),.;:]+$/, '');
+  if (!clean) return null;
+  try { clean = decodeURIComponent(clean); } catch {}
+  return clean;
+}
+
 function referencedLocalPaths(content) {
   const found = new Set();
   for (const match of content.matchAll(/\]\(([^)]+)\)/g)) {
-    const value = match[1].trim().split(/\s+/)[0];
+    const value = cleanReferenceTarget(match[1]);
     if (value) found.add(value);
   }
-  for (const match of content.matchAll(/\b(?:scripts|references|assets)\/[A-Za-z0-9._/-]+/g)) found.add(match[0]);
-  return [...found].filter(value => {
-    if (!value || value.startsWith('#')) return false;
-    if (/^(?:https?:|mailto:|data:)/i.test(value)) return false;
-    if (value.includes('*') || value.includes('<') || value.includes('>')) return false;
-    return true;
-  });
+  for (const match of content.matchAll(/(?<![A-Za-z0-9_}\/])(?:scripts|references|assets)\/[A-Za-z0-9._/-]+(?:#[A-Za-z0-9._:-]+)?/g)) {
+    const value = cleanReferenceTarget(match[0]);
+    if (value) found.add(value);
+  }
+  for (const match of content.matchAll(/\$\{?(?:CLAUDE_PLUGIN_ROOT|CODEX_PLUGIN_ROOT)\}?\/[A-Za-z0-9._/-]+/g)) {
+    found.add(match[0]);
+  }
+  return [...found];
+}
+
+function resolveSkillReference(ref, { skillDir, pluginRoot = null }) {
+  const pluginRootMatch = ref.match(/^\$\{?(?:CLAUDE_PLUGIN_ROOT|CODEX_PLUGIN_ROOT)\}?\/(.+)$/);
+  if (pluginRootMatch) {
+    if (!pluginRoot) return { resolved: null, external: true, unresolvedPluginRoot: true };
+    return { resolved: path.resolve(pluginRoot, pluginRootMatch[1]), external: true, unresolvedPluginRoot: false };
+  }
+
+  const resolved = path.resolve(skillDir, ref);
+  const relativeToSkill = path.relative(skillDir, resolved);
+  const insideSkill = !relativeToSkill.startsWith('..') && !path.isAbsolute(relativeToSkill);
+  if (insideSkill) return { resolved, external: false, unresolvedPluginRoot: false };
+
+  if (pluginRoot) {
+    const relativeToPlugin = path.relative(pluginRoot, resolved);
+    const insidePlugin = !relativeToPlugin.startsWith('..') && !path.isAbsolute(relativeToPlugin);
+    if (insidePlugin) return { resolved, external: true, unresolvedPluginRoot: false };
+  }
+
+  return { resolved: null, external: true, unresolvedPluginRoot: false };
 }
 
 function inspectCopy(copy, context) {
   const skillFile = resolveDisplayPath(copy.path, context);
   const skillDir = path.dirname(skillFile);
+  const pluginRoot = copy.pluginRoot ? resolveDisplayPath(copy.pluginRoot, context) : null;
   let content = '';
   try { content = fs.readFileSync(skillFile, 'utf8'); } catch {
     return {
-      copy, skillFile, skillDir, folderName: path.basename(skillDir),
+      copy, skillFile, skillDir, pluginRoot, folderName: path.basename(skillDir),
       frontmatter: { hasFrontmatter: false, name: '', description: '' },
-      missingReferences: [], resolvedReferences: [], content: '', unreadable: true,
+      missingReferences: [], externalReferences: [], resolvedReferences: [], content: '', unreadable: true,
     };
   }
   const frontmatter = parseFrontmatter(content);
   const missingReferences = [];
+  const externalReferences = [];
   const resolvedReferences = [];
+
   for (const ref of referencedLocalPaths(content)) {
-    const cleanRef = ref.replace(/[),.;:]+$/, '');
-    const resolved = path.resolve(skillDir, cleanRef);
-    const relative = path.relative(skillDir, resolved);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) continue;
-    if (!fs.existsSync(resolved)) missingReferences.push(cleanRef);
-    else resolvedReferences.push({ relative: cleanRef.replaceAll('\\','/'), absolute: resolved });
+    const resolution = resolveSkillReference(ref, { skillDir, pluginRoot });
+    if (!resolution.resolved) {
+      if (resolution.unresolvedPluginRoot) externalReferences.push(ref);
+      continue;
+    }
+    if (!fs.existsSync(resolution.resolved)) {
+      missingReferences.push(ref);
+      continue;
+    }
+    resolvedReferences.push({
+      relative: ref.replaceAll('\\','/'),
+      absolute: resolution.resolved,
+      external: resolution.external,
+    });
+    if (resolution.external) externalReferences.push(ref);
   }
+
   return {
-    copy, skillFile, skillDir, folderName: path.basename(skillDir),
-    frontmatter, missingReferences, resolvedReferences, content, unreadable: false,
+    copy, skillFile, skillDir, pluginRoot, folderName: path.basename(skillDir),
+    frontmatter, missingReferences, externalReferences, resolvedReferences, content, unreadable: false,
   };
 }
 
@@ -95,6 +141,11 @@ function structuralProblems(inspected, target) {
   if (inspected.missingReferences.length) {
     problems.push(`Missing companion file${inspected.missingReferences.length === 1 ? '' : 's'}: ${inspected.missingReferences.join(', ')}.`);
   }
+  if (inspected.externalReferences?.length && inspected.copy?.pluginHost !== target) {
+    problems.push(
+      `Depends on plugin-root companion file${inspected.externalReferences.length === 1 ? '' : 's'} that will not move with the skill directory: ${inspected.externalReferences.join(', ')}.`
+    );
+  }
   return problems;
 }
 
@@ -109,7 +160,10 @@ function targetCanSee(copy, target, runtime) {
       copy.packageValid
     );
   }
-  return Boolean(visibleOwnersFor(target, copy.scope).has(copy.owner) && copy.packageValid);
+  return Boolean(
+    copy.packageValid &&
+    (copy.pluginHost === target || visibleOwnersFor(target, copy.scope).has(copy.owner))
+  );
 }
 
 function chooseInspection(status, target, runtime, context) {
@@ -204,6 +258,31 @@ function skillScopes(report) {
   ];
 }
 
+function readinessEvidence({
+  discoverable = null,
+  packageComplete = null,
+  dependenciesAvailable = null,
+  versionConsistent = true,
+} = {}) {
+  return {
+    discoverable,
+    packageComplete,
+    dependenciesAvailable,
+    versionConsistent,
+    authentication: 'not-tested',
+    execution: 'not-tested',
+  };
+}
+
+function sourceEvidence(copy) {
+  return {
+    type: copy?.sourceType || 'skill-root',
+    owner: copy?.owner || null,
+    pluginHost: copy?.pluginHost || null,
+    pluginId: copy?.pluginId || null,
+  };
+}
+
 export function analyzeTargetCompatibility(report, target, {
   cwd = report.cwd || process.cwd(),
   home = os.homedir(),
@@ -228,7 +307,16 @@ export function analyzeTargetCompatibility(report, target, {
   for (const [scope, statuses] of skillScopes(report)) {
     for (const status of statuses) {
       if (status.drifted) {
-        skills.push({ name: status.name, scope, status: 'manual', reason: 'Same-name copies have different contents. Pick a canonical version before migrating.', fix: null, dependencies: { commands: [], environment: [], mcpServers: [], blockers: [] } });
+        skills.push({
+          name: status.name,
+          scope,
+          status: 'manual',
+          reason: 'Same-name copies have different contents. Pick a canonical version before migrating.',
+          fix: null,
+          source: sourceEvidence(status.copies[0]),
+          readiness: readinessEvidence({ versionConsistent: false }),
+          dependencies: { commands: [], environment: [], mcpServers: [], blockers: [] },
+        });
         continue;
       }
 
@@ -236,7 +324,20 @@ export function analyzeTargetCompatibility(report, target, {
       if (!inspection) continue;
       const problems = structuralProblems(inspection, target);
       if (problems.length) {
-        skills.push({ name: status.name, scope, status: 'manual', reason: problems.join(' '), fix: null, dependencies: { commands: [], environment: [], mcpServers: [], blockers: [] } });
+        skills.push({
+          name: status.name,
+          scope,
+          status: 'manual',
+          reason: problems.join(' '),
+          fix: null,
+          source: sourceEvidence(inspection.copy),
+          readiness: readinessEvidence({
+            discoverable: status.copies.some(copy => targetCanSee(copy, target, runtime)),
+            packageComplete: false,
+            dependenciesAvailable: null,
+          }),
+          dependencies: { commands: [], environment: [], mcpServers: [], blockers: [] },
+        });
         continue;
       }
 
@@ -245,7 +346,20 @@ export function analyzeTargetCompatibility(report, target, {
         if (localReason) {
           localOnlyRisks.push({ name: status.name, scope, reason: localReason });
           const dependencies = evaluateDependencies({ content: inspection.content, resolvedReferences: inspection.resolvedReferences, target, runtime, env, commandCheck, mcpServers: resolvedMcpServers });
-          skills.push({ name: status.name, scope, status: 'manual', reason: [localReason, ...dependencies.blockers].join(' '), fix: null, dependencies });
+          skills.push({
+            name: status.name,
+            scope,
+            status: 'manual',
+            reason: [localReason, ...dependencies.blockers].join(' '),
+            fix: null,
+            source: sourceEvidence(inspection.copy),
+            readiness: readinessEvidence({
+              discoverable: false,
+              packageComplete: true,
+              dependenciesAvailable: dependencies.blockers.length === 0,
+            }),
+            dependencies,
+          });
           continue;
         }
       }
@@ -258,8 +372,24 @@ export function analyzeTargetCompatibility(report, target, {
       const fix = visible ? null : targetMeta.fix;
       const dependencies = evaluateDependencies({ content: inspection.content, resolvedReferences: inspection.resolvedReferences, target, runtime, env, commandCheck, mcpServers: resolvedMcpServers });
 
-      if (dependencies.blockers.length) skills.push({ name: status.name, scope, status: 'manual', reason: [baseReason, ...dependencies.blockers].join(' '), fix, dependencies });
-      else skills.push({ name: status.name, scope, status: baseStatus, reason: baseReason, fix, dependencies });
+      const readiness = readinessEvidence({
+        discoverable: visible,
+        packageComplete: true,
+        dependenciesAvailable: dependencies.blockers.length === 0,
+      });
+      const item = {
+        name: status.name,
+        scope,
+        source: sourceEvidence(inspection.copy),
+        readiness,
+        dependencies,
+        fix,
+      };
+      if (dependencies.blockers.length) {
+        skills.push({ ...item, status: 'manual', reason: [baseReason, ...dependencies.blockers].join(' ') });
+      } else {
+        skills.push({ ...item, status: baseStatus, reason: baseReason });
+      }
     }
   }
 
@@ -273,6 +403,13 @@ export function analyzeTargetCompatibility(report, target, {
     ready: skills.filter(skill => skill.status === 'ready').length,
     autoFix: skills.filter(skill => skill.status === 'auto-fix').length,
     manual: skills.filter(skill => skill.status === 'manual').length,
+    dimensions: {
+      discoverable: skills.filter(skill => skill.readiness?.discoverable === true).length,
+      packageComplete: skills.filter(skill => skill.readiness?.packageComplete === true).length,
+      dependenciesAvailable: skills.filter(skill => skill.readiness?.dependenciesAvailable === true).length,
+      authenticationTested: skills.filter(skill => skill.readiness?.authentication === 'tested').length,
+      executionTested: skills.filter(skill => skill.readiness?.execution === 'tested').length,
+    },
   };
   const contextRisks = buildContextRisks(report, target, runtime);
   const dependencyRiskCount = skills.reduce((sum, skill) => sum + (skill.dependencies?.blockers?.length || 0), 0);

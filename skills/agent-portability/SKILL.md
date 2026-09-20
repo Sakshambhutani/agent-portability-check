@@ -13,14 +13,14 @@ The deterministic checker is the source of truth for discovery and verification.
 
 Use this loop:
 
-1. **Discover** with the checker.
+1. **Discover** with the checker, including installed plugin-provided skills where the host exposes them locally.
 2. **Apply deterministic fixes** with the checker.
 3. **Investigate remaining blockers** using the harness's file, shell, search, and reasoning capabilities.
 4. **Change only what is supported by evidence.**
 5. **Re-run the checker.**
-6. **Publish the final diagnostic or achievement only after verification.**
+6. **Publish only when the user explicitly asks to share, save, compare with a team, or create a public result.**
 
-Never declare portability based only on your own inspection. Re-run the checker after changes.
+Never declare portability based only on your own inspection. Re-run the checker after changes. Keep diagnostic scans private by default.
 
 ## Skill freshness
 
@@ -82,6 +82,29 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 If the user names another project, use its path instead.
 
 Do not imply that a global-only result is repository-specific.
+
+## Migration mode
+
+Determine whether the user is migrating on the **same machine** or to a **different machine / teammate / cloud environment**.
+
+- **Same machine**: local CLI presence, environment-variable presence, installed plugins, and local MCP configuration are useful evidence.
+- **Different machine / teammate / cloud**: local presence is not transferable evidence. Treat installs, secrets, authentication, plugin availability, and machine-specific paths as migration requirements even if they work on the source machine.
+
+If the user did not specify and the distinction materially changes the answer, state the assumption you are using rather than silently treating a same-machine check as cross-machine readiness.
+
+## Readiness evidence
+
+Keep these dimensions separate for every target:
+
+- **Discoverable** — can the target find the skill?
+- **Package complete** — is the skill package structurally complete, including references?
+- **Dependencies available** — are required CLIs, environment names, and MCP configuration present?
+- **Authentication** — not tested unless the host actually verifies credentials/session access.
+- **Execution** — not tested unless a representative workflow is actually run in that target.
+
+A symlink or copied `SKILL.md` proves discovery/layout only. It does not prove authentication or successful execution.
+
+Installed plugin skills may rely on files outside the skill directory. Treat those as plugin-root dependencies: they can work in the source plugin while still requiring adaptation before the skill is portable on its own.
 
 ## Step 1: Run a private machine-readable diagnostic
 
@@ -203,6 +226,8 @@ Do not fabricate:
 
 When ambiguity remains, explain the exact decision that remains and the evidence you found. Keep working on other fixable blockers.
 
+For host-specific capabilities that are not ordinary files, CLIs, environment variables, or MCP servers — for example a connected session, a host-native visualization surface, workspace loader, or provider-specific built-in tool — do not pretend the deterministic checker verified an equivalent. Identify the capability, check whether the target has an equivalent when evidence is available, and otherwise mark it as an adaptation/replacement decision.
+
 ## Step 4: Handle dependency and context issues intelligently
 
 Use these policies:
@@ -226,9 +251,13 @@ Do not turn a context warning into the false claim that two harnesses will behav
 
 If the user asked for a specific subset of targets, verify each requested target. If they asked for "everywhere" or "all harnesses", re-run the single `--all` diagnostic and use its consolidated verification state.
 
-## Step 6: Create the final result page
+If the user explicitly asks to verify **behavior**, and the target harness is actually available with a safe execution path, run a small representative non-destructive workflow after structural verification. Report that execution evidence separately. Do not generalize one successful workflow into a guarantee that every skill behavior is identical.
 
-After verification, publish the coarse result summary by running the checker without `--no-publish`.
+## Step 6: Optional public result
+
+Do not publish by default when this skill is orchestrating the checker. Keep the verified result private unless the user explicitly asks to share it, save it, compare with teammates, or create a public result.
+
+When requested, publish the coarse result summary by running the checker without `--no-publish`.
 
 Example:
 
@@ -259,12 +288,13 @@ Do not upload skill contents, instruction contents, repository names, or local f
 
 Keep the final response concise and operational. Include:
 
-- what scope was checked;
+- what scope and migration mode were checked;
 - target(s), if any;
+- **transfers as-is / needs adaptation / needs replacement or user decision**;
 - what the deterministic checker fixed;
 - what you repaired intelligently;
-- remaining decisions or external dependencies;
-- verified readiness;
-- final result URL if one was created.
+- remaining dependencies, authentication, or host-specific capability gaps;
+- readiness dimensions, explicitly preserving `authentication: not tested` and `execution: not tested` unless evidence exists;
+- final result URL only if the user asked for one and one was created.
 
 If something remains manual, say why it requires user intent or external authority rather than calling it an unexplained failure.

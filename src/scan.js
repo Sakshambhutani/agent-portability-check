@@ -21,12 +21,16 @@ function readText(file) {
   try { return fs.readFileSync(file, 'utf8'); } catch { return null; }
 }
 
+function readJson(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+}
+
 function hashText(text) {
   return crypto.createHash('sha256').update(text).digest('hex').slice(0, 12);
 }
 
 function expandPath(input, home) {
-  return input
+  return String(input || '')
     .replace(/^~(?=\/|$)/, home)
     .replace(/%LOCALAPPDATA%/gi, process.env.LOCALAPPDATA || '')
     .replace(/%PROGRAMFILES%/gi, process.env.PROGRAMFILES || '');
@@ -165,39 +169,76 @@ function parseSkillFrontmatter(content) {
   };
 }
 
+function cleanReferenceTarget(value) {
+  let clean = String(value || '').trim().split(/\s+/)[0];
+  if (!clean || clean.startsWith('#')) return null;
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/i.test(clean)) return null;
+  if (clean.includes('*') || clean.includes('<') || clean.includes('>')) return null;
+  clean = clean.split('#')[0].split('?')[0].replace(/[),.;:]+$/, '');
+  if (!clean) return null;
+  try { clean = decodeURIComponent(clean); } catch {}
+  return clean;
+}
+
 function referencedLocalPaths(content) {
   const found = new Set();
 
   for (const match of content.matchAll(/\]\(([^)]+)\)/g)) {
-    const value = match[1].trim().split(/\s+/)[0];
+    const value = cleanReferenceTarget(match[1]);
     if (value) found.add(value);
   }
 
-  for (const match of content.matchAll(/\b(?:scripts|references|assets)\/[A-Za-z0-9._/-]+/g)) {
+  for (const match of content.matchAll(/(?<![A-Za-z0-9_}\/])(?:scripts|references|assets)\/[A-Za-z0-9._/-]+(?:#[A-Za-z0-9._:-]+)?/g)) {
+    const value = cleanReferenceTarget(match[0]);
+    if (value) found.add(value);
+  }
+
+  for (const match of content.matchAll(/\$\{?(?:CLAUDE_PLUGIN_ROOT|CODEX_PLUGIN_ROOT)\}?\/[A-Za-z0-9._/-]+/g)) {
     found.add(match[0]);
   }
 
-  return [...found].filter(value => {
-    if (!value || value.startsWith('#')) return false;
-    if (/^(?:https?:|mailto:|data:)/i.test(value)) return false;
-    if (value.includes('*') || value.includes('<') || value.includes('>')) return false;
-    return true;
-  });
+  return [...found];
 }
 
-function inspectSkillPackage(file, content) {
+function resolveSkillReference(ref, { skillDir, pluginRoot = null }) {
+  const pluginRootMatch = ref.match(/^\$\{?(?:CLAUDE_PLUGIN_ROOT|CODEX_PLUGIN_ROOT)\}?\/(.+)$/);
+  if (pluginRootMatch) {
+    if (!pluginRoot) return { resolved: null, external: true, unresolvedPluginRoot: true };
+    return { resolved: path.resolve(pluginRoot, pluginRootMatch[1]), external: true, unresolvedPluginRoot: false };
+  }
+
+  const resolved = path.resolve(skillDir, ref);
+  const relativeToSkill = path.relative(skillDir, resolved);
+  const insideSkill = !relativeToSkill.startsWith('..') && !path.isAbsolute(relativeToSkill);
+  if (insideSkill) return { resolved, external: false, unresolvedPluginRoot: false };
+
+  if (pluginRoot) {
+    const relativeToPlugin = path.relative(pluginRoot, resolved);
+    const insidePlugin = !relativeToPlugin.startsWith('..') && !path.isAbsolute(relativeToPlugin);
+    if (insidePlugin) return { resolved, external: true, unresolvedPluginRoot: false };
+  }
+
+  return { resolved: null, external: true, unresolvedPluginRoot: false };
+}
+
+function inspectSkillPackage(file, content, { pluginRoot = null } = {}) {
   const skillDir = path.dirname(file);
   const folderName = path.basename(skillDir);
   const frontmatter = parseSkillFrontmatter(content);
   const missingReferences = [];
+  const externalReferences = [];
 
   for (const ref of referencedLocalPaths(content)) {
-    const cleanRef = ref.replace(/[),.;:]+$/, '');
-    const resolved = path.resolve(skillDir, cleanRef);
-    const relative = path.relative(skillDir, resolved);
-
-    if (relative.startsWith('..') || path.isAbsolute(relative)) continue;
-    if (!exists(resolved)) missingReferences.push(cleanRef);
+    const resolution = resolveSkillReference(ref, { skillDir, pluginRoot });
+    if (!resolution.resolved) {
+      if (resolution.unresolvedPluginRoot) externalReferences.push(ref);
+      continue;
+    }
+    if (!exists(resolution.resolved)) {
+      missingReferences.push(ref);
+      continue;
+    }
+    if (resolution.external) externalReferences.push(ref);
   }
 
   const validName = Boolean(frontmatter.name && /^[a-z0-9-]+$/.test(frontmatter.name));
@@ -210,6 +251,7 @@ function inspectSkillPackage(file, content) {
     folderName,
     folderMatchesName,
     missingReferences,
+    externalReferences,
     packageValid: Boolean(
       frontmatter.hasFrontmatter &&
       validName &&
@@ -232,6 +274,131 @@ function displayPath(file, cwd, home) {
   return file;
 }
 
+function normalizePluginRecords(value) {
+  if (!value || typeof value !== 'object') return [];
+  if (Array.isArray(value)) return value.filter(item => item && typeof item === 'object');
+  return [value];
+}
+
+function claudeInstalledPluginRoots(home, cwd, scope) {
+  const roots = [];
+  const seen = new Set();
+  const registries = [
+    path.join(home, '.claude', 'plugins', 'installed_plugins.json'),
+    path.join(home, '.config', 'claude', 'plugins', 'installed_plugins.json'),
+  ];
+
+  for (const registry of registries) {
+    const value = readJson(registry);
+    const plugins = value?.plugins;
+    if (!plugins || typeof plugins !== 'object') continue;
+
+    for (const [pluginId, rawRecords] of Object.entries(plugins)) {
+      for (const record of normalizePluginRecords(rawRecords)) {
+        if (!record.installPath) continue;
+        const root = path.resolve(expandPath(record.installPath, home));
+        if (!exists(root)) continue;
+
+        const declaredScope = String(record.scope || 'user').toLowerCase();
+        const projectPath = record.projectPath ? path.resolve(expandPath(record.projectPath, home)) : null;
+        const projectScoped = declaredScope === 'project' || declaredScope === 'local';
+        const appliesToProject = Boolean(
+          projectPath &&
+          (cwd === projectPath || cwd.startsWith(projectPath + path.sep))
+        );
+        const resolvedScope = projectScoped ? 'project' : 'global';
+        if (resolvedScope !== scope) continue;
+        if (projectScoped && projectPath && !appliesToProject) continue;
+
+        const skillsRoot = path.join(root, 'skills');
+        if (!exists(skillsRoot)) continue;
+        const id = 'claude:' + pluginId + ':' + root;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        roots.push({
+          owner: 'claude',
+          root: skillsRoot,
+          pluginRoot: root,
+          pluginHost: 'claude',
+          pluginId,
+          sourceType: 'plugin',
+        });
+      }
+    }
+  }
+  return roots;
+}
+
+function parseCodexEnabledPluginIds(file) {
+  const content = readText(file);
+  if (!content) return [];
+  const sections = [...content.matchAll(/^\s*\[plugins\.(?:"([^"]+)"|([A-Za-z0-9_.@/-]+))\]\s*$/gm)];
+  const ids = [];
+  for (let i = 0; i < sections.length; i++) {
+    const id = sections[i][1] || sections[i][2];
+    const start = sections[i].index + sections[i][0].length;
+    const end = i + 1 < sections.length ? sections[i + 1].index : content.length;
+    const body = content.slice(start, end);
+    if (/^\s*enabled\s*=\s*false\s*$/mi.test(body)) continue;
+    ids.push(id);
+  }
+  return ids;
+}
+
+function newestDirectory(root) {
+  if (!exists(root)) return null;
+  let dirs = [];
+  try {
+    dirs = fs.readdirSync(root, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => {
+        const full = path.join(root, entry.name);
+        let mtime = 0;
+        try { mtime = fs.statSync(full).mtimeMs; } catch {}
+        return { full, mtime };
+      });
+  } catch { return null; }
+  dirs.sort((a, b) => b.mtime - a.mtime || b.full.localeCompare(a.full));
+  return dirs[0]?.full || null;
+}
+
+function codexInstalledPluginRoots(home, scope) {
+  if (scope !== 'global') return [];
+  const roots = [];
+  const seen = new Set();
+  const ids = new Set(parseCodexEnabledPluginIds(path.join(home, '.codex', 'config.toml')));
+
+  for (const id of ids) {
+    const split = id.lastIndexOf('@');
+    if (split <= 0 || split === id.length - 1) continue;
+    const plugin = id.slice(0, split);
+    const marketplace = id.slice(split + 1);
+    const root = newestDirectory(path.join(home, '.codex', 'plugins', 'cache', marketplace, plugin));
+    if (!root) continue;
+    const skillsRoot = path.join(root, 'skills');
+    if (!exists(skillsRoot)) continue;
+    const key = 'codex:' + id + ':' + root;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    roots.push({
+      owner: 'codex',
+      root: skillsRoot,
+      pluginRoot: root,
+      pluginHost: 'codex',
+      pluginId: id,
+      sourceType: 'plugin',
+    });
+  }
+  return roots;
+}
+
+function installedPluginSkillRoots(home, cwd, scope) {
+  return [
+    ...claudeInstalledPluginRoots(home, cwd, scope),
+    ...codexInstalledPluginRoots(home, scope),
+  ];
+}
+
 function discoverDynamicRooSkillRoots(base) {
   const specs = [];
   for (const relBase of ['.roo', '.agents']) {
@@ -251,12 +418,27 @@ function discoverDynamicRooSkillRoots(base) {
 
 function gatherSkills(base, scope, cwd, home) {
   const skills = [];
-  const specs = [...skillRootSpecs(scope), ...discoverDynamicRooSkillRoots(base)];
+  const specs = [
+    ...skillRootSpecs(scope).map(spec => ({ ...spec, root: path.join(base, spec.rel) })),
+    ...discoverDynamicRooSkillRoots(base).map(spec => ({ ...spec, root: path.join(base, spec.rel) })),
+    ...installedPluginSkillRoots(home, cwd, scope),
+  ];
+  const seenPaths = new Set();
+
   for (const spec of specs) {
-    const root = path.join(base, spec.rel);
+    const root = spec.root;
     for (const file of walkSkillFiles(root)) {
+      const pathKey = [
+        spec.owner || '',
+        spec.sourceType || 'skill-root',
+        spec.pluginId || '',
+        path.resolve(file),
+      ].join(':');
+      if (seenPaths.has(pathKey)) continue;
+      seenPaths.add(pathKey);
+
       const content = readText(file) || '';
-      const inspection = inspectSkillPackage(file, content);
+      const inspection = inspectSkillPackage(file, content, { pluginRoot: spec.pluginRoot || null });
       const relativeToRoot = path.relative(root, file).split(path.sep);
       const harnessManaged = relativeToRoot.includes('.system');
       skills.push({
@@ -268,6 +450,10 @@ function gatherSkills(base, scope, cwd, home) {
         bytes: Buffer.byteLength(content),
         harnessManaged,
         mode: spec.mode || null,
+        sourceType: spec.sourceType || 'skill-root',
+        pluginHost: spec.pluginHost || null,
+        pluginId: spec.pluginId || null,
+        pluginRoot: spec.pluginRoot ? displayPath(spec.pluginRoot, cwd, home) : null,
         ...inspection,
       });
     }
@@ -395,7 +581,10 @@ function analyzeScope(skills, installedKeys) {
     if (hasDrift) drift.push({ name, copies });
 
     const availableToInstalled = (key) => copies.some(copy =>
-      visibleOwnersFor(key, copy.scope).has(copy.owner) && copy.packageValid
+      copy.packageValid && (
+        copy.pluginHost === key ||
+        visibleOwnersFor(key, copy.scope).has(copy.owner)
+      )
     );
 
     let portableAcrossInstalled = false;

@@ -32,6 +32,9 @@ function packageIssueReason(copy) {
   if (copy?.missingReferences?.length) {
     issues.push(`Missing companion file${copy.missingReferences.length === 1 ? '' : 's'}: ${copy.missingReferences.join(', ')}.`);
   }
+  if (copy?.externalReferences?.length) {
+    issues.push(`Depends on plugin-root companion file${copy.externalReferences.length === 1 ? '' : 's'} outside the skill directory: ${copy.externalReferences.join(', ')}.`);
+  }
   if (!issues.length) issues.push('Skill metadata or companion files are invalid.');
   return `${issues.join(' ')}${copy?.path ? ` Source: ${copy.path}.` : ''}`;
 }
@@ -102,6 +105,14 @@ export function planPortableReadyFix(report, {
         if (!source) continue;
         if (!source.packageValid) {
           conflicts.push({ name: status.name, scope, reason: `${packageIssueReason(source)} Nothing was copied.` });
+          continue;
+        }
+        if (source.externalReferences?.length) {
+          conflicts.push({
+            name: status.name,
+            scope,
+            reason: `Plugin skill depends on files outside its skill directory. Copying only the skill would be incomplete: ${source.externalReferences.join(', ')}.`,
+          });
           continue;
         }
 

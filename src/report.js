@@ -105,11 +105,22 @@ function targetCompatibilityHtml(target) {
   if (!target) return '';
   const rows = target.skills.map(skill => {
     const deps = [
-      ...(skill.dependencies?.commands || []).filter(item => item.needsSetup).map(item => `CLI: ${item.name}`),
+      ...(skill.dependencies?.commands || []).filter(item => item.required !== false && item.needsSetup).map(item => `CLI: ${item.name}`),
       ...(skill.dependencies?.environment || []).filter(item => item.required && (item.available === false || item.needsCloudSecret)).map(item => `ENV: ${item.name}`),
       ...(skill.dependencies?.mcpServers || []).filter(item => !item.available).map(item => `MCP: ${item.name}`),
     ];
-    return `<tr><td>${esc(skill.scope || 'global')}</td><td>${esc(skill.name)}</td><td>${esc(skill.status)}</td><td>${esc(skill.reason)}</td><td>${deps.length ? deps.map(esc).join('<br>') : '—'}</td></tr>`;
+    const r = skill.readiness || {};
+    const evidence = [
+      `discoverable: ${r.discoverable === true ? 'yes' : r.discoverable === false ? 'no' : 'unknown'}`,
+      `package: ${r.packageComplete === true ? 'complete' : r.packageComplete === false ? 'incomplete' : 'unknown'}`,
+      `deps: ${r.dependenciesAvailable === true ? 'ready' : r.dependenciesAvailable === false ? 'missing' : 'unknown'}`,
+      `auth: ${r.authentication || 'not-tested'}`,
+      `execution: ${r.execution || 'not-tested'}`,
+    ].join(' · ');
+    const source = skill.source?.type === 'plugin'
+      ? `<br><span class="muted">plugin: ${esc(skill.source.pluginId || skill.source.pluginHost || 'installed')}</span>`
+      : '';
+    return `<tr><td>${esc(skill.scope || 'global')}</td><td>${esc(skill.name)}${source}</td><td>${esc(skill.status)}</td><td>${esc(evidence)}</td><td>${esc(skill.reason)}</td><td>${deps.length ? deps.map(esc).join('<br>') : '—'}</td></tr>`;
   }).join('');
 
   const context = target.contextRisks?.length
@@ -124,7 +135,8 @@ function targetCompatibilityHtml(target) {
       <div class="metric"><b>${target.summary.manual}</b>manual</div>
     </div>
     <p class="muted">Runtime: ${esc(target.runtime || 'local')} · dependency blockers: ${target.dependencyRiskCount || 0} · context gaps: ${target.contextRisks?.length || 0}</p>
-    <table><thead><tr><th>Scope</th><th>Skill</th><th>Status</th><th>Reason</th><th>Dependencies</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No skills found.</td></tr>'}</tbody></table>
+    ${target.summary.dimensions ? `<p class="muted">Discoverable: ${target.summary.dimensions.discoverable}/${target.summary.total} · package complete: ${target.summary.dimensions.packageComplete}/${target.summary.total} · dependencies ready: ${target.summary.dimensions.dependenciesAvailable}/${target.summary.total} · authentication tested: ${target.summary.dimensions.authenticationTested}/${target.summary.total} · execution tested: ${target.summary.dimensions.executionTested}/${target.summary.total}</p>` : ''}
+    <table><thead><tr><th>Scope</th><th>Skill</th><th>Status</th><th>Evidence</th><th>Reason</th><th>Dependencies</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No skills found.</td></tr>'}</tbody></table>
     <h3>Context that may not carry over</h3>${context}
   </section>`;
 }
