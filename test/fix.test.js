@@ -154,3 +154,24 @@ test('native open-agent harness skills canonicalize into shared .agents skills',
     assert.equal(after.global.portableReadyPercent, 100, installed);
   }
 });
+
+
+test('all-target fix planning canonicalizes shared skills and adds only required adapters', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.gemini/skills/review/SKILL.md'), '---\nname: review\ndescription: Review code\n---\nReview');
+
+  const before = scan({ cwd, home, installedHarnesses: ['gemini'] });
+  const plan = planPortableReadyFix(before, {
+    cwd,
+    home,
+    targets: ['claude','codex','cursor','gemini','copilot','opencode','roo'],
+  });
+
+  assert.equal(plan.copyPlans.length, 1);
+  assert.equal(plan.adapterPlans.length, 1);
+  assert.equal(plan.adapterPlans[0].target, 'claude');
+
+  applyPortableReadyFix(plan);
+  assert.equal(fs.existsSync(path.join(home, '.agents/skills/review/SKILL.md')), true);
+  assert.equal(fs.lstatSync(path.join(home, '.claude/skills/review')).isSymbolicLink(), true);
+});

@@ -16,10 +16,12 @@ The web app uses only the project URL and **publishable** API key. There is no s
 
 All identified writes use the signed-in user's Supabase JWT and narrowly scoped Postgres RPCs:
 
-- `apc_create_team`
+- `apc_create_team_v2`
 - `apc_join_team`
-- `apc_save_result`
+- `apc_save_result_v2`
 - `apc_team_snapshot`
+
+The v2 create/save RPCs add an explicit `mode` field so Team Compare can distinguish a single-target result from an all-harness result without overloading target names. The older create/save RPCs remain in place for backwards compatibility during deployment rollouts.
 
 The first three require an authenticated user. The snapshot function is accessible through the capability-style team invite code and intentionally returns no email address or user ID.
 
@@ -74,7 +76,9 @@ Only after explicit sign-in:
 - optional teammate display name
 - team membership
 - summary readiness metrics
-- target/runtime
+- target/runtime for single-target checks
+- all-harness target counts for `--all` checks
+- check mode (`single` or `all`)
 - timestamps
 
 Not stored:
@@ -99,3 +103,8 @@ The public leaderboard RPC does not return:
 Joining or saving requires a valid authenticated user JWT.
 
 PostHog remains anonymous and does not receive team invite codes, names, emails, or GitHub identities.
+
+
+## All-harness Team Compare
+
+An all-harness team invite preserves `--all` when a teammate copies the scan command. The leaderboard compares targets-ready / targets-checked rather than pretending those counts are individual skills. Only coarse counts are saved; the per-skill matrix remains local.

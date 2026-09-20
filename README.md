@@ -52,9 +52,19 @@ Important runtime distinction:
 
 ## 10-second compatibility check
 
+Check one target:
+
 ```bash
 npx github:Sakshambhutani/agent-portability-check --target claude
 ```
+
+Check everything in one run:
+
+```bash
+npx github:Sakshambhutani/agent-portability-check --all
+```
+
+`--all` produces one target summary plus a skill × harness matrix for Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, Cursor Cloud, and GitHub Copilot Cloud Agent.
 
 Targets:
 
@@ -375,6 +385,7 @@ The public/CLI flow can emit anonymous events such as:
 -p, --path <dir>       Project to scan
 -o, --output <dir>     Report folder
     --target <agent>    claude | codex | cursor | gemini | copilot | opencode | roo
+    --all               Check all supported local + cloud harness surfaces
     --runtime <mode>    local | cloud (Cursor / Copilot cloud targets)
     --team <code>       Attach an explicitly joined team invite
     --resume [id]       Resume latest or named local session

@@ -175,3 +175,44 @@ test('share URLs preserve new harness targets', () => {
     assert.match(info.url, /targetComplete=1/);
   }
 });
+
+
+test('all-harness share URLs contain only coarse target summaries', () => {
+  const report = {
+    installedHarnesses: [{ key: 'codex' }],
+    global: {
+      score: null,
+      totalSkills: 2,
+      portableAcrossInstalled: 0,
+      portableReadySkills: 2,
+      sharedFormatSkills: 2,
+      drift: [],
+    },
+  };
+  const allCompatibility = {
+    summary: { targetsReady: 1, targets: 2, allSkillPackagesReady: false },
+    targets: [
+      {
+        target:'codex', runtime:'local',
+        summary:{ready:2,total:2,autoFix:0,manual:0},
+        contextRisks:[], dependencyRiskCount:0, skillPackagesReady:true,
+      },
+      {
+        target:'cursor', runtime:'cloud',
+        summary:{ready:0,total:2,autoFix:0,manual:2},
+        contextRisks:[{kind:'instruction'}], dependencyRiskCount:1, skillPackagesReady:false,
+      },
+    ],
+  };
+  const info = createShareInfo(report, {
+    publicUrl:'https://example.com',
+    referralId:'all123',
+    allCompatibility,
+  });
+  assert.match(info.url, /mode=all/);
+  assert.match(info.url, /allReady=1/);
+  assert.match(info.url, /allTotal=2/);
+  assert.match(info.url, /codex%3A2%3A2/);
+  assert.equal(info.url.includes('review'), false);
+  assert.equal(info.url.includes('/Users/'), false);
+});

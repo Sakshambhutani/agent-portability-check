@@ -9,7 +9,7 @@ const POSTHOG_HOST = process.env.APC_POSTHOG_HOST || 'https://us.i.posthog.com';
 const POSTHOG_TOKEN = process.env.APC_POSTHOG_TOKEN || '';
 const TELEMETRY_ENDPOINT = process.env.APC_TELEMETRY_ENDPOINT || `${DEFAULT_PUBLIC_URL}/api/telemetry`;
 const CONSENT_VERSION = 1;
-const APP_VERSION = '0.10.0';
+const APP_VERSION = '0.11.0';
 
 function configPath(home = os.homedir()) {
   return path.join(home, '.agent-portability', 'config.json');

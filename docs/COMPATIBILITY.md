@@ -32,6 +32,24 @@ Results are one of:
 - **Auto-fix** — package is valid but needs a safe location/adapter change
 - **Manual** — conflict, malformed metadata, or missing companion file requires a human choice
 
+## All-harness mode
+
+`--all` runs the same deterministic target analysis across all supported surfaces in one pass:
+
+- Claude Code
+- Codex
+- Cursor
+- Gemini CLI
+- GitHub Copilot
+- OpenCode
+- Roo Code
+- Cursor Cloud
+- GitHub Copilot Cloud Agent
+
+The consolidated output includes a target summary and a skill × harness matrix. An all-harness package achievement requires every target surface to have no skill-package auto-fix or manual blockers. Context warnings remain separate and do not imply behavior equivalence.
+
+`--all --fix` applies only deterministic shared-package/discovery fixes. It does not automatically promote personal skills into a repository for cloud runtimes, invent secrets, or rewrite ambiguous harness-specific instructions.
+
 ## Harness location assumptions
 
 These are intentionally isolated from the scoring language so they can change as harnesses evolve.

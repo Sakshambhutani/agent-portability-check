@@ -21,7 +21,8 @@ export default async function handler(req, res) {
   const input = req.body && typeof req.body === 'object' ? req.body : {};
   const name = cleanDisplayName(input.name) || 'My Agent Team';
   const target = HARNESS_ORDER.includes(input.target) ? input.target : null;
-  const runtime = input.runtime === 'cloud' ? 'cloud' : 'local';
+  const mode = input.mode === 'all' ? 'all' : 'single';
+  const runtime = mode === 'all' ? 'local' : (input.runtime === 'cloud' ? 'cloud' : 'local');
   const displayName =
     cleanDisplayName(input.display_name) ||
     cleanDisplayName(auth.user.user_metadata?.full_name) ||
@@ -30,11 +31,12 @@ export default async function handler(req, res) {
     '';
 
   try {
-    const team = await supabaseRpc('apc_create_team', {
+    const team = await supabaseRpc('apc_create_team_v2', {
       p_name: name,
-      p_target: target,
+      p_target: mode === 'all' ? null : target,
       p_runtime: runtime,
       p_display_name: displayName || null,
+      p_mode: mode,
     }, { token: auth.token });
 
     const origin = `https://${req.headers.host}`;

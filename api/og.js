@@ -45,6 +45,17 @@ export default async function handler(req, res) {
   const targetLabel = target
     ? (runtime === 'cloud' ? (harnessDefinition(target)?.cloudLabel || `${LABELS[target]} Cloud`) : LABELS[target])
     : '';
+  const allMode = req.query?.mode === 'all';
+  const allTargetsTotal = allMode ? intParam(req.query?.allTotal, 0, 20, 0) : 0;
+  const allTargetsReady = allMode ? intParam(req.query?.allReady, 0, allTargetsTotal || 20, 0) : 0;
+  const allManualTargets = allMode ? intParam(req.query?.allManualTargets, 0, 20, 0) : 0;
+  const allContextTargets = allMode ? intParam(req.query?.allContextTargets, 0, 20, 0) : 0;
+  const allComplete = Boolean(
+    allMode &&
+    allTargetsTotal > 0 &&
+    allTargetsReady === allTargetsTotal &&
+    req.query?.allComplete === '1'
+  );
 
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const readiness = total > 0 ? Math.round(100 * ready / total) : null;
@@ -59,34 +70,46 @@ export default async function handler(req, res) {
     req.query?.targetComplete === '1'
   );
 
-  const hero = target
-    ? `${targetReady}/${targetTotal}`
-    : portableReady
-      ? '100%'
-      : `${ready}/${total}`;
+  const hero = allMode
+    ? `${allTargetsReady}/${allTargetsTotal}`
+    : target
+      ? `${targetReady}/${targetTotal}`
+      : portableReady
+        ? '100%'
+        : `${ready}/${total}`;
 
-  const heroLabel = target
-    ? `READY FOR ${targetLabel.toUpperCase()}`
-    : portableReady
-      ? 'PORTABLE-READY'
-      : 'SKILLS PORTABLE-READY';
+  const heroLabel = allMode
+    ? 'HARNESS TARGETS READY'
+    : target
+      ? `READY FOR ${targetLabel.toUpperCase()}`
+      : portableReady
+        ? 'PORTABLE-READY'
+        : 'SKILLS PORTABLE-READY';
 
-  const title = target ? `Ready for ${targetLabel}?` : 'How portable is my AI setup?';
+  const title = allMode
+    ? 'Ready across your harnesses?'
+    : target
+      ? `Ready for ${targetLabel}?`
+      : 'How portable is my AI setup?';
 
-  const sub = target
-    ? targetComplete
-      ? `All skill packages are ready for ${targetLabel}${targetContext ? ` · ${targetContext} context gap${targetContext === 1 ? '' : 's'} shown separately` : ''}`
-      : `${targetAuto} auto-fix · ${targetManual} manual · ${targetDeps} deps · ${targetContext} context gaps`
-    : portableReady
-      ? `${ready}/${total} skills are in shared format with no drift`
-      : `${total} global skills found in ${agentLabel}`;
+  const sub = allMode
+    ? allComplete
+      ? `All ${allTargetsTotal} supported harness surfaces are package-ready${allContextTargets ? ` · ${allContextTargets} context warning target${allContextTargets === 1 ? '' : 's'}` : ''}`
+      : `${allManualTargets} targets need review · ${allContextTargets} with context gaps`
+    : target
+      ? targetComplete
+        ? `All skill packages are ready for ${targetLabel}${targetContext ? ` · ${targetContext} context gap${targetContext === 1 ? '' : 's'} shown separately` : ''}`
+        : `${targetAuto} auto-fix · ${targetManual} manual · ${targetDeps} deps · ${targetContext} context gaps`
+      : portableReady
+        ? `${ready}/${total} skills are in shared format with no drift`
+        : `${total} global skills found in ${agentLabel}`;
 
-  const accent = targetComplete || portableReady ? '#68d391' : '#9aa6b2';
+  const accent = allComplete || targetComplete || portableReady ? '#68d391' : '#9aa6b2';
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
     <rect width="1200" height="630" fill="#0b0d10"/>
     <text x="72" y="92" fill="#9aa6b2" font-size="27" font-family="Arial,Helvetica,sans-serif" font-weight="600" letter-spacing="2">
-      ${esc(target ? 'AGENT MIGRATION CHECK' : 'AGENT PORTABILITY CHECK')}
+      ${esc(allMode ? 'ALL-HARNESS CHECK' : target ? 'AGENT MIGRATION CHECK' : 'AGENT PORTABILITY CHECK')}
     </text>
     <text x="72" y="174" fill="#ffffff" font-size="58" font-family="Arial,Helvetica,sans-serif" font-weight="800">
       ${esc(title)}
@@ -105,7 +128,7 @@ export default async function handler(req, res) {
       </div>
     </foreignObject>
     <text x="610" y="430" fill="#c8d0d9" font-size="24" font-family="Arial,Helvetica,sans-serif">
-      ${esc(`${drift} drifted · ${agentLabel}`)}
+      ${esc(allMode ? `${allTargetsReady}/${allTargetsTotal} targets ready · ${total} global skills` : `${drift} drifted · ${agentLabel}`)}
     </text>
 
     <line x1="72" y1="508" x2="1128" y2="508" stroke="#2a313a"/>

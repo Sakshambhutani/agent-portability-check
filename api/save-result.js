@@ -39,8 +39,10 @@ export default async function handler(req, res) {
 
   const input = req.body && typeof req.body === 'object' ? req.body : {};
 
+  const mode = input.mode === 'all' ? 'all' : 'single';
+
   try {
-    const result = await supabaseRpc('apc_save_result', {
+    const result = await supabaseRpc('apc_save_result_v2', {
       p_team_code: cleanTeamCode(input.team_code) || null,
       p_referral_id: cleanRef(input.referral_id),
       p_target: cleanTarget(input.target),
@@ -55,6 +57,12 @@ export default async function handler(req, res) {
       p_total_skills: intValue(input.total_skills),
       p_drift: intValue(input.drift),
       p_complete: Boolean(input.complete),
+      p_mode: mode,
+      p_all_targets_ready: intValue(input.all_targets_ready),
+      p_all_targets_total: intValue(input.all_targets_total),
+      p_all_manual_targets: intValue(input.all_manual_targets),
+      p_all_context_targets: intValue(input.all_context_targets),
+      p_all_dependency_blockers: intValue(input.all_dependency_blockers),
     }, { token: auth.token });
 
     return res.status(200).json({ ok: true, result });
@@ -68,6 +76,9 @@ export default async function handler(req, res) {
     }
     if (detail.includes('team_target_mismatch')) {
       return res.status(409).json({ error: 'team_target_mismatch' });
+    }
+    if (detail.includes('team_mode_mismatch')) {
+      return res.status(409).json({ error: 'team_mode_mismatch' });
     }
     console.error('save_result_failed', error?.data || error?.message || error);
     return res.status(502).json({ error: 'save_result_failed' });

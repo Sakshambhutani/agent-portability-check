@@ -6,7 +6,7 @@ import { scan } from './scan.js';
 import { writeReports } from './report.js';
 import { publishShareResult, normalizeReferralId, normalizeTeamCode } from './share.js';
 import { planPortableReadyFix, applyPortableReadyFix } from './fix.js';
-import { analyzeTargetCompatibility, TARGETS } from './compatibility.js';
+import { analyzeAllCompatibility, analyzeTargetCompatibility, TARGETS } from './compatibility.js';
 import { HARNESS_DEFINITIONS, HARNESS_ORDER, targetKeys } from './harnesses.js';
 import { openBrowser } from './browser.js';
 import {
@@ -38,6 +38,7 @@ function parseArgs(argv) {
     fix: false,
     yes: false,
     target: null,
+    all: false,
     runtime: 'local',
     team: '',
     resume: null,
@@ -58,6 +59,7 @@ function parseArgs(argv) {
     else if (a === '--analytics' && argv[i + 1]) args.analytics = argv[++i].toLowerCase();
     else if (a === '--ref' && argv[i + 1]) { args.ref = normalizeReferralId(argv[++i]); args.refProvided = true; }
     else if (a === '--target' && argv[i + 1]) { args.target = argv[++i].toLowerCase(); args.targetProvided = true; }
+    else if (a === '--all') { args.all = true; args.targetProvided = true; }
     else if (a === '--runtime' && argv[i + 1]) { args.runtime = argv[++i].toLowerCase(); args.runtimeProvided = true; }
     else if (a === '--team' && argv[i + 1]) { args.team = normalizeTeamCode(argv[++i]); args.teamProvided = true; }
     else if (a === '--resume') {
@@ -72,7 +74,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --no-publish       Do not create a public result URL\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    ${targetKeys().join(' | ')}\n      --runtime <mode>    local (default) or cloud for supported cloud targets\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --no-publish       Do not create a public result URL\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    ${targetKeys().join(' | ')}\n      --all               Check every supported local + cloud harness\n      --runtime <mode>    local (default) or cloud for supported cloud targets\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
 }
 
 async function ask(prompt) {
@@ -87,6 +89,7 @@ async function ask(prompt) {
 
 function applySessionDefaults(args, session) {
   if (!args.pathProvided && session.cwd) args.cwd = session.cwd;
+  if (!args.targetProvided && session.all) args.all = true;
   if (!args.targetProvided && session.target) args.target = session.target;
   if (!args.runtimeProvided && session.runtime) args.runtime = session.runtime;
   if (!args.teamProvided && session.team) args.team = session.team;
@@ -94,6 +97,9 @@ function applySessionDefaults(args, session) {
 
 function progressLine(session) {
   const s = session.summary || {};
+  if (session.all && s.allTargetsTotal != null) {
+    return `${s.allTargetsReady ?? 0} / ${s.allTargetsTotal ?? 0} harness targets ready`;
+  }
   if (session.target && s.targetTotal != null) {
     return `${s.targetReady ?? 0} / ${s.targetTotal ?? 0} ready for ${session.target}`;
   }
@@ -118,7 +124,7 @@ async function prepareResume(args) {
   }
 
   const hasExplicitIntent =
-    args.fix || args.targetProvided || args.teamProvided || args.refProvided || args.pathProvided;
+    args.fix || args.targetProvided || args.all || args.teamProvided || args.refProvided || args.pathProvided;
   if (!interactive || hasExplicitIntent) {
     return { handled: false, session: null, resumed: false, openedPrevious: false };
   }
@@ -319,6 +325,65 @@ function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } =
   }
 }
 
+function printAllCompatibility(result, { heading = 'ALL-HARNESS COMPATIBILITY' } = {}) {
+  if (!result) return;
+
+  console.log('\n' + heading);
+  console.log('──────────────────────────────────────────────────────────────────────────────');
+  console.log('Target                         Ready      Auto   Manual  Context  Status');
+  console.log('──────────────────────────────────────────────────────────────────────────────');
+
+  for (const target of result.targets) {
+    const ready = String(target.summary.ready) + '/' + String(target.summary.total);
+    const status = target.skillPackagesReady ? '✓ READY' : target.summary.manual ? '✕ REVIEW' : '⚡ FIX';
+    console.log(
+      target.targetLabel.padEnd(30) +
+      ready.padEnd(11) +
+      String(target.summary.autoFix).padEnd(7) +
+      String(target.summary.manual).padEnd(8) +
+      String(target.contextRisks?.length || 0).padEnd(9) +
+      status
+    );
+  }
+
+  console.log('──────────────────────────────────────────────────────────────────────────────');
+  console.log('Targets package-ready  ' + result.summary.targetsReady + ' / ' + result.summary.targets);
+  console.log('Skills checked          ' + result.summary.totalSkills);
+  console.log('Targets with context    ' + result.summary.contextGapTargets);
+
+  const blockers = result.targets.flatMap(target =>
+    target.skills
+      .filter(skill => skill.status !== 'ready')
+      .map(skill => ({
+        target: target.targetLabel,
+        scope: skill.scope,
+        name: skill.name,
+        status: skill.status,
+        reason: skill.reason,
+      }))
+  );
+
+  if (blockers.length) {
+    console.log('\nWhat still needs work');
+    for (const item of blockers.slice(0, 30)) {
+      const icon = item.status === 'auto-fix' ? '⚡' : '✕';
+      console.log(icon + ' ' + item.target + ' · ' + (item.scope === 'project' ? '[project] ' : '') + item.name);
+      console.log('  ' + item.reason);
+    }
+    if (blockers.length > 30) {
+      console.log('… ' + (blockers.length - 30) + ' more target-specific blocker(s) are in the JSON/HTML report.');
+    }
+  }
+
+  if (result.summary.allSkillPackagesReady) {
+    console.log('\n🏆 ALL SKILL PACKAGES READY ACROSS SUPPORTED HARNESSES');
+    if (result.summary.contextGapTargets) {
+      console.log('⚠ Context differences remain on ' + result.summary.contextGapTargets + ' target surface(s) and are shown separately.');
+    }
+  }
+}
+
+
 function printInstalled(report) {
   const installed = new Map(report.installedHarnesses.map(h => [h.key, h]));
   console.log('\nAgent tools detected');
@@ -373,6 +438,17 @@ async function main() {
   let localSession = resumeState.session;
   const sessionResumed = resumeState.resumed;
 
+  if (args.all && args.target) {
+    console.error('Use either --all or --target, not both.');
+    process.exitCode = 1;
+    return;
+  }
+  if (args.all && args.runtimeProvided) {
+    console.error('--all already checks all supported local and cloud surfaces; do not combine it with --runtime.');
+    process.exitCode = 1;
+    return;
+  }
+
   if (args.target && !TARGETS[args.target]) {
     console.error(`Invalid --target value. Use: ${targetKeys().join(', ')}.`);
     process.exitCode = 1;
@@ -414,6 +490,9 @@ async function main() {
   let targetReport = args.target
     ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
     : null;
+  let allReport = args.all
+    ? analyzeAllCompatibility(report, { cwd: args.cwd, includeCloud: true })
+    : null;
   let fixPlan = null;
   let fixApplied = false;
 
@@ -427,10 +506,12 @@ async function main() {
     fixPlan = planPortableReadyFix(report, {
       cwd: args.cwd,
       target: args.target,
-      blockedSkillKeys,
+      targets: args.all ? targetKeys() : [],
+      blockedSkillKeys: args.all ? [] : blockedSkillKeys,
     });
     printFixPlan(fixPlan, report);
     if (targetReport) printTargetCompatibility(targetReport, { heading: 'BEFORE FIX' });
+    if (allReport) printAllCompatibility(allReport, { heading: 'BEFORE FIX — ALL HARNESSES' });
 
     if (fixPlan.changeCount > 0) {
       const approved = args.yes || await confirmFix();
@@ -441,6 +522,9 @@ async function main() {
         report = scan({ cwd: args.cwd });
         targetReport = args.target
           ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
+          : null;
+        allReport = args.all
+          ? analyzeAllCompatibility(report, { cwd: args.cwd, includeCloud: true })
           : null;
         const after = report.global.portableReadyPercent;
         fixApplied = true;
@@ -457,6 +541,7 @@ async function main() {
             }
           }
         }
+        if (allReport) printAllCompatibility(allReport, { heading: 'AFTER FIX — ALL HARNESSES' });
         if (after === 100) console.log('🏆 100% PORTABLE-READY');
       } else {
         console.log('\nNo changes applied.');
@@ -470,7 +555,11 @@ async function main() {
   }
 
   const shareInfo = args.publish
-    ? await publishShareResult(report, { targetCompatibility: targetReport, teamCode: args.team })
+    ? await publishShareResult(report, {
+        targetCompatibility: targetReport,
+        allCompatibility: allReport,
+        teamCode: args.team,
+      })
     : null;
 
   let files = null;
@@ -479,6 +568,7 @@ async function main() {
     console.log(JSON.stringify({
       ...report,
       targetCompatibility: targetReport,
+      allCompatibility: allReport,
     }, null, 2));
   } else {
     console.log('\nAgent Portability Check');
@@ -491,13 +581,20 @@ async function main() {
     console.log('\nWhat stood out');
     for (const f of report.findings) console.log(`${findingIcon(f.level)} ${f.text}`);
     if (targetReport && !args.fix) printTargetCompatibility(targetReport);
+    if (allReport && !args.fix) printAllCompatibility(allReport);
   }
 
   if (args.write) {
     const out = path.resolve(args.cwd, args.output);
-    files = writeReports(report, out, { shareUrl: shareInfo?.url, targetCompatibility: targetReport });
+    files = writeReports(report, out, {
+      shareUrl: shareInfo?.url,
+      targetCompatibility: targetReport,
+      allCompatibility: allReport,
+    });
     if (!args.json) {
-      const cardLabel = isAchievement(report, targetReport) ? 'Local achievement card:' : 'Local diagnostic card:';
+      const cardLabel = (allReport ? allReport.summary.allSkillPackagesReady : isAchievement(report, targetReport))
+        ? 'Local achievement card:'
+        : 'Local diagnostic card:';
       console.log('\n' + cardLabel.padEnd(24) + files.svgPath);
       console.log('Local full report:       ' + files.htmlPath);
     }
@@ -505,7 +602,9 @@ async function main() {
     console.log('Result page: ' + shareInfo.url);
   }
 
-  const achievedNow = isAchievement(report, targetReport);
+  const achievedNow = allReport
+    ? Boolean(allReport.summary.allSkillPackagesReady)
+    : isAchievement(report, targetReport);
   if (shareInfo) {
     if (!localSession) {
       localSession = createSession({
@@ -515,6 +614,7 @@ async function main() {
         team: args.team,
         report,
         targetCompatibility: targetReport,
+        allCompatibility: allReport,
         resultUrl: shareInfo.url,
         resultId: shareInfo.referralId,
       });
@@ -527,6 +627,7 @@ async function main() {
         team: args.team,
         report,
         targetCompatibility: targetReport,
+        allCompatibility: allReport,
         resultUrl: shareInfo.url,
         resultId: shareInfo.referralId,
         browserOpened: resultChanged ? false : localSession.browserOpened,
@@ -578,7 +679,8 @@ async function main() {
       const previewPlan = planPortableReadyFix(report, {
         cwd: args.cwd,
         target: args.target,
-        blockedSkillKeys,
+        targets: args.all ? targetKeys() : [],
+        blockedSkillKeys: args.all ? [] : blockedSkillKeys,
       });
 
       console.log('\nNext step');
@@ -594,7 +696,7 @@ async function main() {
       } else {
         console.log('No automatic changes are needed right now.');
       }
-      if (!args.target && report.installedHarnesses.length === 1) {
+      if (!args.target && !args.all && report.installedHarnesses.length === 1) {
         console.log('You can still test whether this setup is ready for Claude Code, Codex, Cursor, or Cursor Cloud.');
       }
 
@@ -667,6 +769,14 @@ async function main() {
       baseProperties.target_dependency_count_bucket = bucket(targetReport.dependencyRiskCount || 0);
       baseProperties.target_runtime = targetReport.runtime || 'local';
       baseProperties.target_complete = Boolean(targetReport.fullyReady);
+    }
+    if (allReport) {
+      baseProperties.target_agent = 'all';
+      baseProperties.target_runtime = 'all';
+      baseProperties.target_complete = Boolean(allReport.summary.allSkillPackagesReady);
+      baseProperties.target_ready_count_bucket = String(allReport.summary.targetsReady);
+      baseProperties.target_manual_count_bucket = String(allReport.summary.manualTargets);
+      baseProperties.target_context_count_bucket = String(allReport.summary.contextGapTargets);
     }
 
     if (sessionResumed) {
