@@ -294,3 +294,77 @@ export function analyzeTargetCompatibility(report, target, {
     readyPercent: summary.total > 0 ? Math.round(100 * summary.ready / summary.total) : null,
   };
 }
+
+
+export function allTargetDescriptors({ includeCloud = true } = {}) {
+  const targets = targetKeys().map(target => ({ target, runtime: 'local' }));
+  if (includeCloud) {
+    for (const target of targetKeys()) {
+      if (harnessDefinition(target)?.cloud) targets.push({ target, runtime: 'cloud' });
+    }
+  }
+  return targets;
+}
+
+export function analyzeAllCompatibility(report, {
+  cwd = report.cwd || process.cwd(),
+  home = os.homedir(),
+  env = process.env,
+  commandCheck = defaultCommandCheck,
+  mcpServers = null,
+  includeCloud = true,
+} = {}) {
+  const results = allTargetDescriptors({ includeCloud }).map(({ target, runtime }) =>
+    analyzeTargetCompatibility(report, target, {
+      cwd,
+      home,
+      runtime,
+      env,
+      commandCheck,
+      mcpServers,
+    })
+  );
+
+  const skillKeys = new Set();
+  for (const result of results) {
+    for (const skill of result.skills) skillKeys.add(`${skill.scope || 'global'}:${skill.name}`);
+  }
+
+  const matrix = [...skillKeys].sort().map(key => {
+    const [scope, ...nameParts] = key.split(':');
+    const name = nameParts.join(':');
+    const cells = {};
+    for (const result of results) {
+      const id = result.runtime === 'cloud' ? `${result.target}-cloud` : result.target;
+      const skill = result.skills.find(item => (item.scope || 'global') === scope && item.name === name);
+      cells[id] = skill
+        ? {
+            status: skill.status,
+            reason: skill.reason,
+            dependencyBlockers: skill.dependencies?.blockers?.length || 0,
+          }
+        : { status: 'not-found', reason: 'Skill was not present in this scan.', dependencyBlockers: 0 };
+    }
+    return { scope, name, targets: cells };
+  });
+
+  const summary = {
+    targets: results.length,
+    targetsReady: results.filter(result => result.skillPackagesReady).length,
+    targetsFullyReady: results.filter(result => result.fullyReady).length,
+    totalSkills: matrix.length,
+    allSkillPackagesReady: Boolean(results.length && results.every(result => result.skillPackagesReady)),
+    allFullyReady: Boolean(results.length && results.every(result => result.fullyReady)),
+    autoFixTargets: results.filter(result => result.summary.autoFix > 0).length,
+    manualTargets: results.filter(result => result.summary.manual > 0).length,
+    contextGapTargets: results.filter(result => result.contextRisks.length > 0).length,
+  };
+
+  return {
+    mode: 'all',
+    includeCloud,
+    targets: results,
+    matrix,
+    summary,
+  };
+}
