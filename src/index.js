@@ -89,6 +89,7 @@ async function ask(prompt) {
 
 function applySessionDefaults(args, session) {
   if (!args.pathProvided && session.cwd) args.cwd = session.cwd;
+  if (!args.targetProvided && session.all) args.all = true;
   if (!args.targetProvided && session.target) args.target = session.target;
   if (!args.runtimeProvided && session.runtime) args.runtime = session.runtime;
   if (!args.teamProvided && session.team) args.team = session.team;
@@ -96,6 +97,9 @@ function applySessionDefaults(args, session) {
 
 function progressLine(session) {
   const s = session.summary || {};
+  if (session.all && s.allTargetsTotal != null) {
+    return `${s.allTargetsReady ?? 0} / ${s.allTargetsTotal ?? 0} harness targets ready`;
+  }
   if (session.target && s.targetTotal != null) {
     return `${s.targetReady ?? 0} / ${s.targetTotal ?? 0} ready for ${session.target}`;
   }
@@ -120,7 +124,7 @@ async function prepareResume(args) {
   }
 
   const hasExplicitIntent =
-    args.fix || args.targetProvided || args.teamProvided || args.refProvided || args.pathProvided;
+    args.fix || args.targetProvided || args.all || args.teamProvided || args.refProvided || args.pathProvided;
   if (!interactive || hasExplicitIntent) {
     return { handled: false, session: null, resumed: false, openedPrevious: false };
   }
@@ -608,6 +612,7 @@ async function main() {
         team: args.team,
         report,
         targetCompatibility: targetReport,
+        allCompatibility: allReport,
         resultUrl: shareInfo.url,
         resultId: shareInfo.referralId,
       });
@@ -620,6 +625,7 @@ async function main() {
         team: args.team,
         report,
         targetCompatibility: targetReport,
+        allCompatibility: allReport,
         resultUrl: shareInfo.url,
         resultId: shareInfo.referralId,
         browserOpened: resultChanged ? false : localSession.browserOpened,
