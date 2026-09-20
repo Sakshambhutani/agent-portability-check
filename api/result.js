@@ -42,7 +42,7 @@ export default async function handler(req, res) {
   const ref = cleanRef(req.query.ref);
   let stored = null;
 
-  if (ref && source.total === undefined) {
+  if (ref && req.query.total === undefined) {
     try {
       stored = await supabaseRpc('apc_public_result_snapshot', { p_code: ref });
     } catch {}
