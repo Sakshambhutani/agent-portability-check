@@ -479,6 +479,7 @@ const badgeMarkdown = ${JSON.stringify(badgeMarkdown)};
 const teamCode = ${JSON.stringify(teamCode)};
 const resultPayload = ${JSON.stringify({
   referral_id: ref,
+  mode: allMode ? 'all' : 'single',
   target,
   runtime,
   target_ready: targetReady,
@@ -490,6 +491,11 @@ const resultPayload = ${JSON.stringify({
   portable_ready: ready,
   total_skills: total,
   drift,
+  all_targets_ready: allTargetsReady,
+  all_targets_total: allTargetsTotal,
+  all_manual_targets: allRows.filter(row => row.manual > 0).length,
+  all_context_targets: allRows.filter(row => row.context > 0).length,
+  all_dependency_blockers: allRows.reduce((sum, row) => sum + row.deps, 0),
   complete: shareAchievement,
 })};
 const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
@@ -512,7 +518,7 @@ async function track(event, extra={}) {
 try {
   localStorage.setItem('apc_last_result', JSON.stringify({
     url: location.href,
-    target: ${JSON.stringify(target)},
+    target: ${JSON.stringify(allMode ? 'all' : target)},
     runtime: ${JSON.stringify(runtime)},
     complete: ${JSON.stringify(shareAchievement)},
     updatedAt: Date.now()
@@ -690,6 +696,7 @@ document.getElementById('createTeam')?.addEventListener('click',async()=>{
       display_name:document.getElementById('displayNameInput')?.value || '',
       target:resultPayload.target,
       runtime:resultPayload.runtime,
+      mode:resultPayload.mode,
     }),
   });
   const data = await response.json();
