@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agent-labs",
+  "description": "Agent Labs plugins for portable AI agent workflows.",
+  "owner": {
+    "name": "Agent Labs"
+  },
+  "plugins": [
+    {
+      "name": "agent-portability",
+      "displayName": "Agent Portability",
+      "source": "./",
+      "description": "Check, fix, and verify AI agent skills and configuration across supported harnesses and runtimes.",
+      "version": "0.4.0",
+      "author": {
+        "name": "Saksham Bhutani"
+      }
+    }
+  ]
+}
