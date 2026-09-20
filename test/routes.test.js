@@ -134,7 +134,7 @@ test('result pages render new harness targets and cloud labels', async () => {
       targetAuto:'0', targetManual:'0', targetContext:'1', targetDeps:'0',
       runtime, targetComplete:'1',
     });
-    assert.match(html, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\test('team compare is always available while social sharing stays achievement-gated', async () => {')));
+    assert.ok(html.includes(label), target + ' label');
     assert.match(html, /id="linkedin"/);
     for (const [index, script] of scriptsFromHtml(html).entries()) {
       checkJs(script, 'new harness result script ' + target + ' ' + runtime + ' #' + index);
