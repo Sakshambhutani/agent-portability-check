@@ -16,6 +16,25 @@ function folderNameForCopy(copy, context) {
   return path.basename(sourceSkillDir(copy, context));
 }
 
+function packageIssueReason(copy) {
+  const issues = [];
+  if (!copy?.hasFrontmatter) {
+    issues.push('SKILL.md is missing YAML frontmatter.');
+  } else {
+    if (!copy.frontmatterName) issues.push('SKILL.md is missing a frontmatter name.');
+    else if (!/^[a-z0-9-]+$/.test(copy.frontmatterName)) issues.push('Skill name is not lowercase kebab-case.');
+    if (!copy.hasDescription) issues.push('SKILL.md is missing a frontmatter description.');
+    if (copy.folderMatchesName === false) {
+      issues.push(`Skill name "${copy.frontmatterName}" does not match folder "${copy.folderName}".`);
+    }
+  }
+  if (copy?.missingReferences?.length) {
+    issues.push(`Missing companion file${copy.missingReferences.length === 1 ? '' : 's'}: ${copy.missingReferences.join(', ')}.`);
+  }
+  if (!issues.length) issues.push('Skill metadata or companion files are invalid.');
+  return `${issues.join(' ')}${copy?.path ? ` Source: ${copy.path}.` : ''}`;
+}
+
 function scopeRoots(scope, { cwd, home }) {
   if (scope === 'project') {
     return {
@@ -67,7 +86,7 @@ export function planPortableReadyFix(report, {
 
       const portableCopy = status.copies.find(copy => copy.owner === 'portable');
       if (portableCopy && !portableCopy.packageValid) {
-        conflicts.push({ name: status.name, scope, reason: 'Shared copy has invalid skill metadata or missing companion files. Fix it manually first.' });
+        conflicts.push({ name: status.name, scope, reason: `Shared copy is not portable-ready. ${packageIssueReason(portableCopy)} Fix it manually first.` });
         continue;
       }
 
@@ -77,7 +96,7 @@ export function planPortableReadyFix(report, {
         const source = status.copies.find(copy => copy.packageValid) || status.copies[0];
         if (!source) continue;
         if (!source.packageValid) {
-          conflicts.push({ name: status.name, scope, reason: 'Skill metadata or companion files are invalid. Nothing was copied.' });
+          conflicts.push({ name: status.name, scope, reason: `${packageIssueReason(source)} Nothing was copied.` });
           continue;
         }
 
