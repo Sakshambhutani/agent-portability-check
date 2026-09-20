@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { HARNESS_ORDER, harnessDefinition } from './harnesses.js';
 
 const KNOWN_COMMANDS = new Set([
   'node','npm','npx','pnpm','yarn','bun','deno',
@@ -9,6 +10,7 @@ const KNOWN_COMMANDS = new Set([
   'docker','kubectl','helm','terraform',
   'aws','gcloud','az','go','cargo','rustc','eslint','tsc','playwright',
   'bash','sh','zsh',
+  'gemini','copilot','opencode',
 ]);
 
 const COMMON_ENV = new Set([
@@ -94,7 +96,17 @@ export function extractMcpServers(content) {
 }
 
 function readJson(file) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+  try {
+    const raw = fs.readFileSync(file, 'utf8');
+    try { return JSON.parse(raw); } catch {}
+    const withoutComments = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+      .replace(/,\s*([}\]])/g, '$1');
+    return JSON.parse(withoutComments);
+  } catch {
+    return null;
+  }
 }
 
 function collectMcpServersFromJson(value, out = new Set()) {
@@ -102,10 +114,30 @@ function collectMcpServersFromJson(value, out = new Set()) {
   if (value.mcpServers && typeof value.mcpServers === 'object') {
     for (const name of Object.keys(value.mcpServers)) out.add(name);
   }
+  if (value.mcp?.servers && typeof value.mcp.servers === 'object') {
+    for (const name of Object.keys(value.mcp.servers)) out.add(name);
+  }
   for (const nested of Object.values(value)) {
     if (nested && typeof nested === 'object') collectMcpServersFromJson(nested, out);
   }
   return out;
+}
+
+function collectBareMcpServers(value, out = new Set()) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [name, config] of Object.entries(value)) {
+    if (!config || typeof config !== 'object' || Array.isArray(config)) continue;
+    if ('command' in config || 'url' in config || 'type' in config) out.add(name);
+  }
+  return out;
+}
+
+function addJsonServers(out, files, { bare = false } = {}) {
+  for (const file of files) {
+    const value = readJson(file);
+    for (const name of collectMcpServersFromJson(value)) out.add(name);
+    if (bare) for (const name of collectBareMcpServers(value)) out.add(name);
+  }
 }
 
 function parseCodexMcpServers(file) {
@@ -119,27 +151,64 @@ function parseCodexMcpServers(file) {
 }
 
 export function discoverMcpServers({ cwd, home }) {
-  const codex = new Set();
-  const claude = new Set();
-  const cursor = new Set();
+  const out = Object.fromEntries(HARNESS_ORDER.map(key => [key, new Set()]));
+  out.cursorCloud = new Set();
+
   for (const file of [path.join(home,'.codex','config.toml'), path.join(cwd,'.codex','config.toml')]) {
-    for (const name of parseCodexMcpServers(file)) codex.add(name);
+    for (const name of parseCodexMcpServers(file)) out.codex.add(name);
   }
-  for (const file of [path.join(home,'.claude.json'), path.join(cwd,'.mcp.json')]) {
-    const value = readJson(file);
-    for (const name of collectMcpServersFromJson(value)) claude.add(name);
+
+  addJsonServers(out.claude, [path.join(home,'.claude.json'), path.join(cwd,'.mcp.json')]);
+  addJsonServers(out.cursor, [path.join(home,'.cursor','mcp.json'), path.join(cwd,'.cursor','mcp.json')]);
+  addJsonServers(out.gemini, [path.join(home,'.gemini','settings.json'), path.join(cwd,'.gemini','settings.json')]);
+
+  addJsonServers(out.copilot, [
+    path.join(home,'.copilot','mcp-config.json'),
+    path.join(cwd,'.mcp.json'),
+    path.join(cwd,'.github','mcp.json'),
+  ], { bare: true });
+
+  addJsonServers(out.opencode, [
+    path.join(home,'.config','opencode','opencode.json'),
+    path.join(home,'.config','opencode','opencode.jsonc'),
+    path.join(cwd,'opencode.json'),
+    path.join(cwd,'opencode.jsonc'),
+    path.join(cwd,'.opencode','opencode.json'),
+    path.join(cwd,'.opencode','opencode.jsonc'),
+  ]);
+
+  const rooFiles = [path.join(cwd,'.roo','mcp.json')];
+  if (process.platform === 'darwin') {
+    rooFiles.push(
+      path.join(home,'Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+      path.join(home,'Library/Application Support/Code - Insiders/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+      path.join(home,'Library/Application Support/Cursor/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+    );
+  } else if (process.platform === 'win32') {
+    const appdata = process.env.APPDATA || '';
+    if (appdata) {
+      rooFiles.push(
+        path.join(appdata,'Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+        path.join(appdata,'Code - Insiders/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+        path.join(appdata,'Cursor/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+      );
+    }
+  } else {
+    rooFiles.push(
+      path.join(home,'.config/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+      path.join(home,'.config/Code - Insiders/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+      path.join(home,'.config/Cursor/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json'),
+    );
   }
-  for (const file of [path.join(home,'.cursor','mcp.json'), path.join(cwd,'.cursor','mcp.json')]) {
-    const value = readJson(file);
-    for (const name of collectMcpServersFromJson(value)) cursor.add(name);
-  }
-  return { codex, claude, cursor, cursorCloud: new Set() };
+  addJsonServers(out.roo, rooFiles);
+
+  return out;
 }
 
 export function normalizeMcpServers(input, context) {
   if (!input) return discoverMcpServers(context);
   const out = {};
-  for (const key of ['codex','claude','cursor','cursorCloud']) out[key] = new Set(input[key] || []);
+  for (const key of [...HARNESS_ORDER, 'cursorCloud']) out[key] = new Set(input[key] || []);
   return out;
 }
 
@@ -192,7 +261,7 @@ export function evaluateDependencies({ content, resolvedReferences, target, runt
     const available = configured.has(name);
     if (!available) {
       if (target === 'cursor' && runtime === 'cloud') blockers.push(`MCP server "${name}" is referenced but is not known to be configured for Cursor Cloud.`);
-      else blockers.push(`MCP server "${name}" is referenced but not configured for ${target}.`);
+      else blockers.push(`MCP server "${name}" is referenced but not configured for ${harnessDefinition(target)?.label || target}.`);
     }
     return { name, available, runtime };
   });
