@@ -39,6 +39,7 @@ function parseArgs(argv) {
     yes: false,
     target: null,
     all: false,
+    globalOnly: false,
     runtime: 'local',
     team: '',
     resume: null,
@@ -60,6 +61,7 @@ function parseArgs(argv) {
     else if (a === '--ref' && argv[i + 1]) { args.ref = normalizeReferralId(argv[++i]); args.refProvided = true; }
     else if (a === '--target' && argv[i + 1]) { args.target = argv[++i].toLowerCase(); args.targetProvided = true; }
     else if (a === '--all') { args.all = true; args.targetProvided = true; }
+    else if (a === '--global-only') args.globalOnly = true;
     else if (a === '--runtime' && argv[i + 1]) { args.runtime = argv[++i].toLowerCase(); args.runtimeProvided = true; }
     else if (a === '--team' && argv[i + 1]) { args.team = normalizeTeamCode(argv[++i]); args.teamProvided = true; }
     else if (a === '--resume') {
@@ -486,7 +488,8 @@ async function main() {
     return;
   }
 
-  let report = scan({ cwd: args.cwd });
+  const scanScope = args.globalOnly ? 'global' : 'both';
+  let report = scan({ cwd: args.cwd, scope: scanScope });
   let targetReport = args.target
     ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
     : null;
@@ -519,7 +522,7 @@ async function main() {
         const before = report.global.portableReadyPercent;
         const beforeTargetReady = targetReport?.readyPercent ?? null;
         applyPortableReadyFix(fixPlan);
-        report = scan({ cwd: args.cwd });
+        report = scan({ cwd: args.cwd, scope: scanScope });
         targetReport = args.target
           ? analyzeTargetCompatibility(report, args.target, { cwd: args.cwd, runtime: args.runtime })
           : null;
@@ -573,11 +576,18 @@ async function main() {
   } else {
     console.log('\nAgent Portability Check');
     console.log('────────────────────────────────────');
-    console.log(`Current project      ${report.cwd}`);
+    console.log(args.globalOnly
+      ? 'Scope                global/user setup only'
+      : `Current project      ${report.cwd}`);
     printInstalled(report);
     printFootprints(report);
     printScope('GLOBAL SETUP', report.global, report.installedHarnesses.length);
-    printScope('THIS PROJECT', report.project, report.installedHarnesses.length);
+    if (report.projectScopeSkipped) {
+      console.log('\nPROJECT SCOPE');
+      console.log('Skipped              global-only scan');
+    } else {
+      printScope('THIS PROJECT', report.project, report.installedHarnesses.length);
+    }
     console.log('\nWhat stood out');
     for (const f of report.findings) console.log(`${findingIcon(f.level)} ${f.text}`);
     if (targetReport && !args.fix) printTargetCompatibility(targetReport);
