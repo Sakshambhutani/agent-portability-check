@@ -234,7 +234,8 @@ export function evaluateDependencies({ content, resolvedReferences, target, runt
 
   const commandResults = [...commands].sort().map(name => {
     if (runtime === 'cloud') {
-      blockers.push(`Cursor Cloud must provide CLI "${name}"; a local install does not prove cloud availability.`);
+      const label = harnessDefinition(target)?.cloudLabel || `${harnessDefinition(target)?.label || target} Cloud`;
+      blockers.push(`${label} must provide CLI "${name}"; a local install does not prove cloud availability.`);
       return { name, available: null, needsSetup: true, runtime: 'cloud' };
     }
     const available = Boolean(commandCheck(name));
@@ -245,7 +246,8 @@ export function evaluateDependencies({ content, resolvedReferences, target, runt
   const environment = [
     ...envVars.required.map(name => {
       if (runtime === 'cloud') {
-        blockers.push(`Required environment variable "${name}" must be configured as a cloud secret for Cursor Cloud.`);
+        const label = harnessDefinition(target)?.cloudLabel || `${harnessDefinition(target)?.label || target} Cloud`;
+        blockers.push(`Required environment variable "${name}" must be configured as a cloud secret for ${label}.`);
         return { name, required: true, available: null, needsCloudSecret: true };
       }
       const available = Boolean(env[name]);
@@ -260,8 +262,12 @@ export function evaluateDependencies({ content, resolvedReferences, target, runt
   const mcpResults = mcpRefs.map(name => {
     const available = configured.has(name);
     if (!available) {
-      if (target === 'cursor' && runtime === 'cloud') blockers.push(`MCP server "${name}" is referenced but is not known to be configured for Cursor Cloud.`);
-      else blockers.push(`MCP server "${name}" is referenced but not configured for ${harnessDefinition(target)?.label || target}.`);
+      if (runtime === 'cloud') {
+        const label = harnessDefinition(target)?.cloudLabel || `${harnessDefinition(target)?.label || target} Cloud`;
+        blockers.push(`MCP server "${name}" is referenced but is not known to be configured for ${label}.`);
+      } else {
+        blockers.push(`MCP server "${name}" is referenced but not configured for ${harnessDefinition(target)?.label || target}.`);
+      }
     }
     return { name, available, runtime };
   });
