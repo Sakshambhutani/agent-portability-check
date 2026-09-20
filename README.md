@@ -46,7 +46,7 @@ Public directory discovery still requires the normal provider review/submission 
 
 Important runtime distinction:
 
-- In **Codex / Claude Code / a local agent runtime** with filesystem + shell access, the skill can scan and repair the machine directly.
+- In **any supported local agent runtime with filesystem + shell access**, the skill can scan and repair the machine directly.
 - In a **ChatGPT surface without access to the user's local filesystem**, the skill must not pretend it changed the laptop. It can guide the user to run the local checker and interpret the private JSON result.
 - Intermediate intelligent scans use `--no-publish`; the final verified result can create the share/team page.
 
