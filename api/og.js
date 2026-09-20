@@ -55,7 +55,6 @@ export default async function handler(req, res) {
     targetReady === targetTotal &&
     targetAuto === 0 &&
     targetManual === 0 &&
-    targetContext === 0 &&
     targetDeps === 0 &&
     req.query?.targetComplete === '1'
   );
@@ -76,7 +75,7 @@ export default async function handler(req, res) {
 
   const sub = target
     ? targetComplete
-      ? `Skills, dependencies, and context are ready for ${targetLabel}`
+      ? `All skill packages are ready for ${targetLabel}${targetContext ? ` · ${targetContext} context gap${targetContext === 1 ? '' : 's'} shown separately` : ''}`
       : `${targetAuto} auto-fix · ${targetManual} manual · ${targetDeps} deps · ${targetContext} context gaps`
     : portableReady
       ? `${ready}/${total} skills are in shared format with no drift`
