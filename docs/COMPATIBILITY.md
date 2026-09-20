@@ -17,6 +17,11 @@ For every discovered skill package the target simulator checks:
 - folder name matches skill name
 - local companion files referenced under `scripts/`, `references/`, or `assets/` exist
 - same-name copies have not drifted
+- referenced local CLI/interpreter availability
+- required environment variable presence (names only; values are never uploaded)
+- explicit MCP server references against the selected target's config
+- local-only versus repository-visible skills for Cursor Cloud
+- harness-specific instruction gaps such as `CLAUDE.md`, `AGENTS.md`, and Cursor rules
 - whether a location/discovery issue can be auto-fixed without overwriting existing files
 
 Results are one of:
@@ -65,18 +70,19 @@ Primary source:
 - https://docs.cursor.com/context/skills
 - https://cursor.com/docs/skills
 
-## What is not checked yet
+## What is not guaranteed
 
-A **Ready** skill package can still fail at runtime because of dependencies outside the skill package, including:
+The checker validates discoverability and several concrete dependency signals, but a **Ready** result can still fail at runtime. It does not validate:
 
-- MCP servers/tools
-- required environment variables or secrets
-- shell binaries or language runtimes invoked by scripts
+- whether a configured MCP server actually works after connection
+- secret values or credential validity
+- semantic behavior of external CLIs/language runtimes
 - network access
-- filesystem permissions
-- target-specific tool names/APIs
+- filesystem or service permissions
+- target-specific API/tool behavior that is not explicitly referenced
 - model behavior
 - hidden runtime configuration
-- cloud-vs-local execution differences
 
-These are future compatibility layers. Until implemented, public copy should say **"skills ready for <target>"** or **"skill-package readiness"**, not "your whole setup will work identically."
+Cursor Cloud checks are intentionally conservative: local CLI installs and local environment variables do not prove cloud availability, so they are surfaced as setup requirements rather than treated as ready.
+
+Public copy should therefore say **"skills ready for <target>"**, **"portable-ready"**, or **"migration-ready"**, not "your agents will behave identically."
