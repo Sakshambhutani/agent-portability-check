@@ -264,6 +264,15 @@ export default async function handler(req, res) {
     og.searchParams.set('targetComplete', targetComplete ? '1' : '0');
   }
 
+  if (allMode) {
+    og.searchParams.set('mode', 'all');
+    og.searchParams.set('allReady', String(allTargetsReady));
+    og.searchParams.set('allTotal', String(allTargetsTotal));
+    og.searchParams.set('allComplete', allComplete ? '1' : '0');
+    og.searchParams.set('allManualTargets', String(allRows.filter(row => row.manual > 0).length));
+    og.searchParams.set('allContextTargets', String(allRows.filter(row => row.context > 0).length));
+  }
+
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
 
   const shareSentence = allMode && allComplete
