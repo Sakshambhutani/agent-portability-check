@@ -6,7 +6,7 @@ import { scan } from './scan.js';
 import { writeReports } from './report.js';
 import { publishShareResult, normalizeReferralId, normalizeTeamCode } from './share.js';
 import { planPortableReadyFix, applyPortableReadyFix } from './fix.js';
-import { analyzeTargetCompatibility, TARGETS } from './compatibility.js';
+import { analyzeAllCompatibility, analyzeTargetCompatibility, TARGETS } from './compatibility.js';
 import { HARNESS_DEFINITIONS, HARNESS_ORDER, targetKeys } from './harnesses.js';
 import { openBrowser } from './browser.js';
 import {
@@ -38,6 +38,7 @@ function parseArgs(argv) {
     fix: false,
     yes: false,
     target: null,
+    all: false,
     runtime: 'local',
     team: '',
     resume: null,
@@ -58,6 +59,7 @@ function parseArgs(argv) {
     else if (a === '--analytics' && argv[i + 1]) args.analytics = argv[++i].toLowerCase();
     else if (a === '--ref' && argv[i + 1]) { args.ref = normalizeReferralId(argv[++i]); args.refProvided = true; }
     else if (a === '--target' && argv[i + 1]) { args.target = argv[++i].toLowerCase(); args.targetProvided = true; }
+    else if (a === '--all') { args.all = true; args.targetProvided = true; }
     else if (a === '--runtime' && argv[i + 1]) { args.runtime = argv[++i].toLowerCase(); args.runtimeProvided = true; }
     else if (a === '--team' && argv[i + 1]) { args.team = normalizeTeamCode(argv[++i]); args.teamProvided = true; }
     else if (a === '--resume') {
@@ -72,7 +74,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --no-publish       Do not create a public result URL\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    ${targetKeys().join(' | ')}\n      --runtime <mode>    local (default) or cloud for supported cloud targets\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --no-publish       Do not create a public result URL\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    ${targetKeys().join(' | ')}\n      --all               Check every supported local + cloud harness\n      --runtime <mode>    local (default) or cloud for supported cloud targets\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
 }
 
 async function ask(prompt) {
