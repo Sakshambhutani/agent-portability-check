@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { scan } from '../src/scan.js';
-import { analyzeTargetCompatibility } from '../src/compatibility.js';
+import { analyzeAllCompatibility, analyzeTargetCompatibility } from '../src/compatibility.js';
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'apc-target-'));
@@ -310,4 +310,36 @@ test('new harness MCP configs satisfy explicit MCP references', () => {
     const target = analyzeTargetCompatibility(report, targetName, { cwd, home });
     assert.equal(target.summary.ready, 1, targetName);
   }
+});
+
+
+test('all-harness analysis returns local and cloud surfaces in one matrix', () => {
+  const { cwd, home } = fixture();
+  write(path.join(cwd, '.agents/skills/review/SKILL.md'), skill('review'));
+  write(path.join(cwd, '.claude/skills/review/SKILL.md'), skill('review'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const all = analyzeAllCompatibility(report, { cwd, home, includeCloud: true });
+
+  assert.equal(all.summary.targets, 9);
+  assert.equal(all.matrix.length, 1);
+  assert.deepEqual(
+    all.targets.map(item => item.runtime === 'cloud' ? item.target + '-cloud' : item.target),
+    ['codex','claude','cursor','gemini','copilot','opencode','roo','cursor-cloud','copilot-cloud'],
+  );
+  assert.equal(all.matrix[0].targets.codex.status, 'ready');
+  assert.equal(all.matrix[0].targets['cursor-cloud'].status, 'ready');
+});
+
+test('all-harness achievement requires every target surface to be package-ready', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+  write(path.join(home, '.claude/skills/review/SKILL.md'), skill('review'));
+
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const all = analyzeAllCompatibility(report, { cwd, home, includeCloud: true });
+
+  assert.equal(all.summary.targetsReady < all.summary.targets, true);
+  assert.equal(all.summary.allSkillPackagesReady, false);
+  assert.ok(all.targets.find(item => item.target === 'cursor' && item.runtime === 'cloud').summary.manual > 0);
 });
