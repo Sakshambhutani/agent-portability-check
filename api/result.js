@@ -36,9 +36,80 @@ function cleanAgents(value) {
     .slice(0, 3);
 }
 
+function publicResultInt(value, min, max, fallback = 0) {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
+}
+
+function publicResultAgents(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(v => String(v).toLowerCase()))]
+    .filter(v => ['codex','claude','cursor'].includes(v))
+    .slice(0, 3);
+}
+
+async function createPublicResult(req, res) {
+  let raw = '';
+  try { raw = JSON.stringify(req.body || {}); } catch {
+    return res.status(400).json({ error: 'invalid_body' });
+  }
+  if (Buffer.byteLength(raw) > 4096) {
+    return res.status(413).json({ error: 'payload_too_large' });
+  }
+
+  const input = req.body && typeof req.body === 'object' ? req.body : {};
+  const total = publicResultInt(input.total, 0, 999, 0);
+  const target = cleanTarget(input.target) || null;
+  const targetTotal = target ? publicResultInt(input.targetTotal, 0, 999, total) : 0;
+
+  try {
+    const code = await supabaseRpc('apc_create_public_result', {
+      p_score: input.score === null || input.score === undefined
+        ? null
+        : publicResultInt(input.score, 0, 100, null),
+      p_total: total,
+      p_portable: publicResultInt(input.portable, 0, total, 0),
+      p_ready: publicResultInt(input.ready, 0, total, 0),
+      p_shared: publicResultInt(input.shared, 0, total, 0),
+      p_drift: publicResultInt(input.drift, 0, 999, 0),
+      p_agents: publicResultAgents(input.agents),
+      p_target: target,
+      p_target_ready: target ? publicResultInt(input.targetReady, 0, targetTotal, 0) : 0,
+      p_target_total: targetTotal,
+      p_target_auto: target ? publicResultInt(input.targetAuto, 0, 999, 0) : 0,
+      p_target_manual: target ? publicResultInt(input.targetManual, 0, 999, 0) : 0,
+      p_target_context: target ? publicResultInt(input.targetContext, 0, 999, 0) : 0,
+      p_target_deps: target ? publicResultInt(input.targetDeps, 0, 999, 0) : 0,
+      p_runtime: input.runtime === 'cloud' ? 'cloud' : 'local',
+      p_target_complete: Boolean(input.targetComplete),
+      p_team_code: cleanTeam(input.team) || null,
+    });
+
+    if (!code || typeof code !== 'string') {
+      return res.status(502).json({ error: 'result_store_failed' });
+    }
+    const origin = `https://${req.headers.host}`;
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({
+      ok: true,
+      code,
+      url: `${origin}/r/${code}`,
+    });
+  } catch (error) {
+    console.error('result_create_failed', error?.data || error?.message || error);
+    return res.status(502).json({ error: 'result_store_failed' });
+  }
+}
+
 const LABELS = { codex: 'Codex', claude: 'Claude Code', cursor: 'Cursor' };
 
 export default async function handler(req, res) {
+  if (req.method === 'POST') return createPublicResult(req, res);
+  if (req.method && req.method !== 'GET') {
+    res.setHeader('Allow', 'GET, POST');
+    return res.status(405).json({ error: 'method_not_allowed' });
+  }
+
   const ref = cleanRef(req.query.ref);
   let stored = null;
 

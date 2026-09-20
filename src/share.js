@@ -113,7 +113,7 @@ export async function publishShareResult(report, {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(new URL('/api/result-create', base), {
+    const response = await fetchImpl(new URL('/api/result', base), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,

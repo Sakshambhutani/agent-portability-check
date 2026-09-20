@@ -48,7 +48,7 @@ jobs:
       - name: Create and render a short result
         run: |
           set -euo pipefail
-          response="$(curl -fsS -X POST https://agent-portability-check.vercel.app/api/result-create \
+          response="$(curl -fsS -X POST https://agent-portability-check.vercel.app/api/result \
             -H 'Content-Type: application/json' \
             --data '{"score":null,"total":7,"portable":0,"ready":7,"shared":7,"drift":0,"agents":["codex"],"target":"claude","targetReady":7,"targetTotal":7,"targetAuto":0,"targetManual":0,"targetContext":0,"targetDeps":0,"runtime":"local","targetComplete":true}')"
           echo "$response" | grep -q '"ok":true'
