@@ -79,7 +79,13 @@ test('landing page frames portability across harnesses and runtimes', () => {
   assert.match(html, /data-target="claude"/);
   assert.match(html, /data-target="codex"/);
   assert.match(html, /data-target="cursor" data-runtime="cloud"/);
+  assert.match(html, /data-target="gemini" data-runtime="local"/);
+  assert.match(html, /data-target="copilot" data-runtime="local"/);
+  assert.match(html, /data-target="copilot" data-runtime="cloud"/);
+  assert.match(html, /data-target="opencode" data-runtime="local"/);
+  assert.match(html, /data-target="roo" data-runtime="local"/);
   assert.match(html, /Cursor Cloud/);
+  assert.match(html, /Copilot Cloud Agent/);
   assert.match(html, />Understand</);
   assert.doesNotMatch(html, />Moving to/);
 });
@@ -110,6 +116,31 @@ test('result page client script parses in before and trophy states', async () =>
 });
 
 
+
+
+test('result pages render new harness targets and cloud labels', async () => {
+  const cases = [
+    ['gemini', 'local', 'Gemini CLI'],
+    ['copilot', 'local', 'GitHub Copilot'],
+    ['copilot', 'cloud', 'GitHub Copilot Cloud Agent'],
+    ['opencode', 'local', 'OpenCode'],
+    ['roo', 'local', 'Roo Code'],
+  ];
+  for (const [target, runtime, label] of cases) {
+    const html = await render(resultHandler, {
+      ref:'new-harness-' + target + '-' + runtime,
+      score:'na', total:'2', portable:'0', ready:'2', shared:'2', drift:'0',
+      agents:'codex,' + target, target, targetReady:'2', targetTotal:'2',
+      targetAuto:'0', targetManual:'0', targetContext:'1', targetDeps:'0',
+      runtime, targetComplete:'1',
+    });
+    assert.ok(html.includes(label), target + ' label');
+    assert.match(html, /id="linkedin"/);
+    for (const [index, script] of scriptsFromHtml(html).entries()) {
+      checkJs(script, 'new harness result script ' + target + ' ' + runtime + ' #' + index);
+    }
+  }
+});
 
 test('team compare is always available while social sharing stays achievement-gated', async () => {
   const before = await render(resultHandler, {

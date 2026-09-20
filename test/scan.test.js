@@ -145,3 +145,49 @@ test('harness-managed .system skills do not block user portability readiness', (
   assert.equal(r.global.managedSkills[0].name, 'skill-creator');
   assert.ok(r.findings.some(f => /excluded from portability readiness/i.test(f.text)));
 });
+
+
+test('detects Gemini CLI, GitHub Copilot, OpenCode, and Roo Code', () => {
+  const { home } = fixture();
+  fs.mkdirSync(path.join(home, '.vscode/extensions/github.copilot-1.2.3'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.vscode/extensions/rooveterinaryinc.roo-cline-3.0.0'), { recursive: true });
+  const detected = detectInstalledHarnesses({
+    home,
+    platform: 'linux',
+    commandCheck: command => ['gemini', 'opencode'].includes(command),
+  });
+  assert.deepEqual(detected.map(x => x.key), ['gemini', 'copilot', 'opencode', 'roo']);
+});
+
+test('shared .agents skills are portable across the open-agent harness wave', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), validSkill('review'));
+  const r = scan({
+    cwd,
+    home,
+    installedHarnesses: ['codex', 'gemini', 'copilot', 'opencode', 'roo'],
+  });
+  assert.equal(r.global.portableAcrossInstalled, 1);
+  assert.equal(r.global.score, 100);
+});
+
+test('discovers native skill roots for Gemini, Copilot, OpenCode, and Roo', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.gemini/skills/gemini-review/SKILL.md'), validSkill('gemini-review'));
+  write(path.join(home, '.copilot/skills/copilot-review/SKILL.md'), validSkill('copilot-review'));
+  write(path.join(home, '.config/opencode/skills/opencode-review/SKILL.md'), validSkill('opencode-review'));
+  write(path.join(home, '.roo/skills/roo-review/SKILL.md'), validSkill('roo-review'));
+
+  const r = scan({ cwd, home, installedHarnesses: ['gemini'] });
+  const owners = new Set(r.global.skills.map(skill => skill.owner));
+  for (const owner of ['gemini', 'copilot', 'opencode', 'roo']) assert.ok(owners.has(owner));
+});
+
+test('discovers Roo mode-specific skills', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.roo/skills-code/refactor/SKILL.md'), validSkill('refactor'));
+  const r = scan({ cwd, home, installedHarnesses: ['roo'] });
+  const skill = r.global.skills.find(item => item.name === 'refactor');
+  assert.equal(skill.owner, 'roo');
+  assert.equal(skill.mode, 'code');
+});

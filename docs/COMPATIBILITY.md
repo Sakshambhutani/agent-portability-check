@@ -22,8 +22,8 @@ For every user-controlled discovered skill package the target simulator checks:
 - referenced local CLI/interpreter availability
 - required environment variable presence (names only; values are never uploaded)
 - explicit MCP server references against the selected target's config
-- local-only versus repository-visible skills for Cursor Cloud
-- harness-specific instruction gaps such as `CLAUDE.md`, `AGENTS.md`, and Cursor rules
+- local-only versus repository-visible skills for supported cloud runtimes
+- harness-specific instruction gaps such as `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, Copilot instructions, Cursor rules, OpenCode instructions, and Roo rules
 - whether a location/discovery issue can be auto-fixed without overwriting existing files
 
 Results are one of:
@@ -72,6 +72,57 @@ Primary source:
 - https://docs.cursor.com/context/skills
 - https://cursor.com/docs/skills
 
+### Gemini CLI
+
+Gemini CLI supports the Agent Skills format in both native Gemini and interoperable locations:
+
+- global: `~/.gemini/skills`, `~/.agents/skills`
+- project: `.gemini/skills`, `.agents/skills`
+
+Persistent context defaults to `GEMINI.md`; MCP servers are configured through Gemini settings.
+
+Primary source:
+- https://geminicli.com/docs/cli/skills/
+- https://geminicli.com/docs/cli/gemini-md/
+
+### GitHub Copilot
+
+Copilot supports Agent Skills through interoperable and Copilot-specific locations:
+
+- global: `~/.agents/skills`, `~/.copilot/skills`
+- project: `.agents/skills`, `.github/skills`
+
+Repository instructions can use `AGENTS.md`, `.github/copilot-instructions.md`, and path-specific instructions. Cloud-agent checks require repository-visible skills.
+
+Primary source:
+- https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills
+
+### OpenCode
+
+OpenCode supports:
+
+- global: `~/.agents/skills`, `~/.config/opencode/skills`
+- project: `.agents/skills`, `.opencode/skills`
+
+It also supports `AGENTS.md` and structured MCP configuration.
+
+Primary source:
+- https://opencode.ai/docs/skills
+- https://opencode.ai/docs/rules
+
+### Roo Code
+
+Roo Code supports:
+
+- global: `~/.agents/skills`, `~/.roo/skills`
+- project: `.agents/skills`, `.roo/skills`
+- mode-specific skill roots such as `.roo/skills-code`
+
+Roo-specific rules and mode-specific rules are surfaced separately rather than flattened into generic portability.
+
+Primary source:
+- https://roocodeinc.github.io/Roo-Code/features/skills/
+
 ## What is not guaranteed
 
 The checker validates discoverability and several concrete dependency signals, but a **Ready** result can still fail at runtime. It does not validate:
@@ -85,6 +136,6 @@ The checker validates discoverability and several concrete dependency signals, b
 - model behavior
 - hidden runtime configuration
 
-Cursor Cloud checks are intentionally conservative: local CLI installs and local environment variables do not prove cloud availability, so they are surfaced as setup requirements rather than treated as ready.
+Cloud checks are intentionally conservative: local CLI installs, personal skills, environment variables, and MCP availability do not prove cloud availability. Cursor Cloud and GitHub Copilot Cloud Agent therefore require repository-visible skills and surface cloud dependencies separately.
 
 Public copy should therefore say **"skills ready for <target>"**, **"portable-ready"**, or **"migration-ready"**, not "your agents will behave identically."

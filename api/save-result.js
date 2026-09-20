@@ -1,3 +1,4 @@
+import { HARNESS_ORDER } from '../src/harnesses.js';
 import {
   cleanTeamCode,
   requireSupabaseUser,
@@ -11,7 +12,7 @@ function intValue(value, max = 10000) {
 }
 
 function cleanTarget(value) {
-  return ['claude','codex','cursor'].includes(value) ? value : null;
+  return HARNESS_ORDER.includes(value) ? value : null;
 }
 
 function cleanRuntime(value) {

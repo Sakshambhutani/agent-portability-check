@@ -7,6 +7,7 @@ import { writeReports } from './report.js';
 import { publishShareResult, normalizeReferralId, normalizeTeamCode } from './share.js';
 import { planPortableReadyFix, applyPortableReadyFix } from './fix.js';
 import { analyzeTargetCompatibility, TARGETS } from './compatibility.js';
+import { HARNESS_DEFINITIONS, HARNESS_ORDER, targetKeys } from './harnesses.js';
 import { openBrowser } from './browser.js';
 import {
   createSession,
@@ -71,7 +72,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --no-publish       Do not create a public result URL\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    Simulate migration to claude, codex, or cursor\n      --runtime <mode>    local (default) or cloud; cloud currently means Cursor Cloud\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
+  console.log(`\nAgent Portability Check\n\nUsage:\n  npx github:Sakshambhutani/agent-portability-check\n  agent-portability-check [options]\n\nOptions:\n  -p, --path <dir>       Project to scan (default: current directory)\n  -o, --output <dir>     Report folder (default: .agent-portability)\n      --json             Print the full report as JSON\n      --no-write         Do not write HTML/SVG/JSON files\n      --no-publish       Do not create a public result URL\n      --analytics <mode> on | off | status\n      --ref <id>         Attribute this scan to a shared referral link\n      --target <agent>    ${targetKeys().join(' | ')}\n      --runtime <mode>    local (default) or cloud for supported cloud targets\n      --team <code>       Attach an explicitly joined team invite to the result\n      --resume [id]       Resume the latest (or named) local session\n      --fix              Preview and apply safe portable-ready/target fixes\n  -y, --yes              Apply --fix without confirmation\n  -h, --help             Show help\n`);
 }
 
 async function ask(prompt) {
@@ -179,12 +180,19 @@ function runSelf(sessionId, extraArgs = []) {
 async function chooseMigrationTarget() {
   const answer = (await ask(
     '\nTest migration to:\n' +
-    '[1] Claude Code  [2] Codex  [3] Cursor  [4] Cursor Cloud  [Q] Cancel\nChoose: '
+    '[1] Claude Code  [2] Codex  [3] Cursor  [4] Cursor Cloud\n' +
+    '[5] Gemini CLI   [6] GitHub Copilot  [7] Copilot Cloud Agent\n' +
+    '[8] OpenCode     [9] Roo Code  [Q] Cancel\nChoose: '
   )).toLowerCase();
   if (answer === '1' || answer === 'claude') return { target: 'claude', runtime: 'local' };
   if (answer === '2' || answer === 'codex') return { target: 'codex', runtime: 'local' };
   if (answer === '3' || answer === 'cursor') return { target: 'cursor', runtime: 'local' };
-  if (answer === '4' || answer === 'cloud') return { target: 'cursor', runtime: 'cloud' };
+  if (answer === '4' || answer === 'cursor-cloud') return { target: 'cursor', runtime: 'cloud' };
+  if (answer === '5' || answer === 'gemini') return { target: 'gemini', runtime: 'local' };
+  if (answer === '6' || answer === 'copilot') return { target: 'copilot', runtime: 'local' };
+  if (answer === '7' || answer === 'copilot-cloud') return { target: 'copilot', runtime: 'cloud' };
+  if (answer === '8' || answer === 'opencode') return { target: 'opencode', runtime: 'local' };
+  if (answer === '9' || answer === 'roo') return { target: 'roo', runtime: 'local' };
   return null;
 }
 
@@ -228,7 +236,7 @@ function printFixPlan(plan, report) {
   console.log('────────────────────────────────────');
   console.log(`Current global readiness  ${before === null ? 'N/A' : `${before}%`}`);
   console.log(`Skills to canonicalize  ${plan.copyPlans.length}`);
-  console.log(`Claude adapters         ${plan.adapterPlans.length}`);
+  console.log(`Discovery adapters      ${plan.adapterPlans.length}`);
   console.log(`Conflicts needing review ${plan.conflicts.length}`);
 
   if (plan.copyPlans.length) {
@@ -237,8 +245,8 @@ function printFixPlan(plan, report) {
   }
 
   if (plan.adapterPlans.length) {
-    console.log('\nWill add Claude skill adapters:');
-    for (const item of plan.adapterPlans) console.log(`  + [${item.scope}] ${item.name} → ${item.linkPath}`);
+    console.log('\nWill add target discovery adapters:');
+    for (const item of plan.adapterPlans) console.log(`  + [${item.scope}] ${item.name} → ${item.linkPath}${item.label ? ` (${item.label})` : ''}`);
   }
 
   if (plan.conflicts.length) {
@@ -314,7 +322,8 @@ function printTargetCompatibility(result, { heading = 'TARGET COMPATIBILITY' } =
 function printInstalled(report) {
   const installed = new Map(report.installedHarnesses.map(h => [h.key, h]));
   console.log('\nAgent tools detected');
-  for (const [key, label] of [['codex', 'Codex'], ['claude', 'Claude Code'], ['cursor', 'Cursor']]) {
+  for (const key of HARNESS_ORDER) {
+    const label = HARNESS_DEFINITIONS[key].label;
     const item = installed.get(key);
     const detail = item ? ` (${item.evidence.map(e => e.type).join(', ')})` : '';
     console.log(`${mark(Boolean(item))} ${label}${detail}`);
@@ -365,7 +374,7 @@ async function main() {
   const sessionResumed = resumeState.resumed;
 
   if (args.target && !TARGETS[args.target]) {
-    console.error('Invalid --target value. Use: claude, codex, or cursor.');
+    console.error(`Invalid --target value. Use: ${targetKeys().join(', ')}.`);
     process.exitCode = 1;
     return;
   }
@@ -374,8 +383,8 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  if (args.runtime === 'cloud' && args.target !== 'cursor') {
-    console.error('--runtime cloud is currently supported only with --target cursor.');
+  if (args.runtime === 'cloud' && !TARGETS[args.target]?.cloud) {
+    console.error('--runtime cloud is supported only for cloud-capable targets (currently Cursor and GitHub Copilot).');
     process.exitCode = 1;
     return;
   }

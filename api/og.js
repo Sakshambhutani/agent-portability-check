@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { HARNESS_ORDER, harnessDefinition, targetLabels } from '../src/harnesses.js';
 
 function intParam(value, min, max, fallback = null) {
   const n = Number.parseInt(value, 10);
@@ -6,12 +7,12 @@ function intParam(value, min, max, fallback = null) {
 }
 
 function cleanAgents(value) {
-  const allowed = new Set(['codex', 'claude', 'cursor']);
+  const allowed = new Set(HARNESS_ORDER);
   return String(value || '')
     .split(',')
     .map(x => x.trim().toLowerCase())
     .filter(x => allowed.has(x))
-    .slice(0, 3);
+    .slice(0, HARNESS_ORDER.length);
 }
 
 function esc(value) {
@@ -24,7 +25,7 @@ function esc(value) {
   }[ch]));
 }
 
-const LABELS = { codex: 'Codex', claude: 'Claude Code', cursor: 'Cursor' };
+const LABELS = targetLabels();
 
 export default async function handler(req, res) {
   const score = req.query?.score === 'na' ? null : intParam(req.query?.score, 0, 100, null);
@@ -33,8 +34,7 @@ export default async function handler(req, res) {
   const ready = intParam(req.query?.ready ?? req.query?.shared, 0, total || 999, portable);
   const drift = intParam(req.query?.drift, 0, 999, 0);
   const agents = cleanAgents(req.query?.agents);
-  const target = ['claude','codex','cursor'].includes(req.query?.target) ? req.query.target : '';
-  const targetLabel = target ? LABELS[target] : '';
+  const target = HARNESS_ORDER.includes(req.query?.target) ? req.query.target : '';
   const targetTotal = target ? intParam(req.query?.targetTotal, 0, 999, total) : 0;
   const targetReady = target ? intParam(req.query?.targetReady, 0, targetTotal || 999, 0) : 0;
   const targetAuto = target ? intParam(req.query?.targetAuto, 0, 999, 0) : 0;
@@ -42,6 +42,9 @@ export default async function handler(req, res) {
   const targetContext = target ? intParam(req.query?.targetContext, 0, 999, 0) : 0;
   const targetDeps = target ? intParam(req.query?.targetDeps, 0, 999, 0) : 0;
   const runtime = req.query?.runtime === 'cloud' ? 'cloud' : 'local';
+  const targetLabel = target
+    ? (runtime === 'cloud' ? (harnessDefinition(target)?.cloudLabel || `${LABELS[target]} Cloud`) : LABELS[target])
+    : '';
 
   const agentLabel = agents.length ? agents.map(a => LABELS[a]).join(' ↔ ') : 'Agent setup';
   const readiness = total > 0 ? Math.round(100 * ready / total) : null;
@@ -52,7 +55,6 @@ export default async function handler(req, res) {
     targetReady === targetTotal &&
     targetAuto === 0 &&
     targetManual === 0 &&
-    targetContext === 0 &&
     targetDeps === 0 &&
     req.query?.targetComplete === '1'
   );
@@ -64,16 +66,16 @@ export default async function handler(req, res) {
       : `${ready}/${total}`;
 
   const heroLabel = target
-    ? `READY FOR ${(runtime === 'cloud' ? targetLabel + ' CLOUD' : targetLabel).toUpperCase()}`
+    ? `READY FOR ${targetLabel.toUpperCase()}`
     : portableReady
       ? 'PORTABLE-READY'
       : 'SKILLS PORTABLE-READY';
 
-  const title = target ? `Ready for ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}?` : 'How portable is my AI setup?';
+  const title = target ? `Ready for ${targetLabel}?` : 'How portable is my AI setup?';
 
   const sub = target
     ? targetComplete
-      ? `Skills, dependencies, and context are ready for ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}`
+      ? `All skill packages are ready for ${targetLabel}${targetContext ? ` · ${targetContext} context gap${targetContext === 1 ? '' : 's'} shown separately` : ''}`
       : `${targetAuto} auto-fix · ${targetManual} manual · ${targetDeps} deps · ${targetContext} context gaps`
     : portableReady
       ? `${ready}/${total} skills are in shared format with no drift`

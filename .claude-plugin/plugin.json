@@ -1,7 +1,7 @@
 {
   "name": "agent-portability",
-  "description": "Diagnose and repair AI agent portability across Claude Code, Codex, Cursor, and Cursor Cloud.",
-  "version": "0.1.0",
+  "description": "Diagnose and repair AI agent portability across Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, and supported cloud runtimes.",
+  "version": "0.2.0",
   "author": {
     "name": "Saksham Bhutani"
   },

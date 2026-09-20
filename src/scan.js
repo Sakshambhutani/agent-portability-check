@@ -3,51 +3,15 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import {
+  HARNESS_DEFINITIONS,
+  HARNESS_ORDER,
+  configPathSpecs,
+  instructionSpecs,
+  skillRootSpecs,
+  visibleOwnersFor,
+} from './harnesses.js';
 
-const HARNESS_META = {
-  codex: {
-    label: 'Codex',
-    commands: ['codex'],
-    vscodeExtensions: ['openai.chatgpt'],
-  },
-  claude: {
-    label: 'Claude Code',
-    commands: ['claude'],
-    vscodeExtensions: ['anthropic.claude-code'],
-  },
-  cursor: {
-    label: 'Cursor',
-    commands: ['agent', 'cursor'],
-    macApps: ['/Applications/Cursor.app', '~/Applications/Cursor.app'],
-    windowsApps: [
-      '%LOCALAPPDATA%/Programs/Cursor/Cursor.exe',
-      '%PROGRAMFILES%/Cursor/Cursor.exe',
-    ],
-  },
-};
-
-const SKILL_ROOTS = [
-  { owner: 'portable', rel: '.agents/skills' },
-  { owner: 'claude', rel: '.claude/skills' },
-  { owner: 'cursor', rel: '.cursor/skills' },
-  { owner: 'codex', rel: '.codex/skills' },
-];
-
-const PROJECT_INSTRUCTIONS = [
-  { owner: 'shared', rel: 'AGENTS.md' },
-  { owner: 'claude', rel: 'CLAUDE.md' },
-];
-
-const HOME_INSTRUCTIONS = [
-  { owner: 'codex', rel: '.codex/AGENTS.md' },
-  { owner: 'claude', rel: '.claude/CLAUDE.md' },
-];
-
-const CONFIG_DIRS = {
-  codex: '.codex',
-  claude: '.claude',
-  cursor: '.cursor',
-};
 
 function exists(file) {
   try { return fs.existsSync(file); } catch { return false; }
@@ -110,7 +74,8 @@ export function detectInstalledHarnesses({ home = os.homedir(), platform = proce
   home = path.resolve(home);
   const detected = [];
 
-  for (const [key, meta] of Object.entries(HARNESS_META)) {
+  for (const key of HARNESS_ORDER) {
+    const meta = HARNESS_DEFINITIONS[key];
     const evidence = [];
 
     for (const command of meta.commands || []) {
@@ -267,9 +232,27 @@ function displayPath(file, cwd, home) {
   return file;
 }
 
+function discoverDynamicRooSkillRoots(base) {
+  const specs = [];
+  for (const relBase of ['.roo', '.agents']) {
+    const dir = path.join(base, relBase);
+    if (!exists(dir)) continue;
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith('skills-')) continue;
+      const mode = entry.name.slice('skills-'.length);
+      if (!mode) continue;
+      specs.push({ owner: 'roo', rel: path.join(relBase, entry.name), mode });
+    }
+  }
+  return specs;
+}
+
 function gatherSkills(base, scope, cwd, home) {
   const skills = [];
-  for (const spec of SKILL_ROOTS) {
+  const specs = [...skillRootSpecs(scope), ...discoverDynamicRooSkillRoots(base)];
+  for (const spec of specs) {
     const root = path.join(base, spec.rel);
     for (const file of walkSkillFiles(root)) {
       const content = readText(file) || '';
@@ -284,6 +267,7 @@ function gatherSkills(base, scope, cwd, home) {
         hash: hashText(content),
         bytes: Buffer.byteLength(content),
         harnessManaged,
+        mode: spec.mode || null,
         ...inspection,
       });
     }
@@ -308,27 +292,54 @@ function gatherInstructions(base, scope, specs, cwd, home) {
   return out;
 }
 
-function gatherCursorRules(cwd, home) {
-  const roots = [
-    { scope: 'project', root: path.join(cwd, '.cursor/rules') },
-    { scope: 'global', root: path.join(home, '.cursor/rules') },
-  ];
-  const rules = [];
-  for (const item of roots) {
-    if (!exists(item.root)) continue;
+function walkRuleFiles(root, owner, scope, cwd, home, kind) {
+  if (!exists(root)) return [];
+  const out = [];
+  const stack = [root];
+  while (stack.length) {
+    const dir = stack.pop();
     let entries = [];
-    try { entries = fs.readdirSync(item.root, { withFileTypes: true }); } catch { continue; }
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
     for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.mdc')) continue;
-      const file = path.join(item.root, entry.name);
-      const content = readText(file) || '';
-      rules.push({
-        owner: 'cursor',
-        scope: item.scope,
-        path: displayPath(file, cwd, home),
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (entry.name.startsWith('.') || /\.(?:bak|cache|log|tmp|swp)$/i.test(entry.name)) continue;
+      const content = readText(full) || '';
+      out.push({
+        owner,
+        scope,
+        kind,
+        path: displayPath(full, cwd, home),
         hash: hashText(content),
         bytes: Buffer.byteLength(content),
       });
+    }
+  }
+  return out;
+}
+
+function gatherRules(cwd, home) {
+  const rules = [
+    ...walkRuleFiles(path.join(home, '.cursor/rules'), 'cursor', 'global', cwd, home, 'cursor-rule'),
+    ...walkRuleFiles(path.join(cwd, '.cursor/rules'), 'cursor', 'project', cwd, home, 'cursor-rule'),
+    ...walkRuleFiles(path.join(home, '.copilot/instructions'), 'copilot', 'global', cwd, home, 'copilot-instruction'),
+    ...walkRuleFiles(path.join(cwd, '.github/instructions'), 'copilot', 'project', cwd, home, 'copilot-instruction'),
+    ...walkRuleFiles(path.join(home, '.roo/rules'), 'roo', 'global', cwd, home, 'roo-rule'),
+    ...walkRuleFiles(path.join(cwd, '.roo/rules'), 'roo', 'project', cwd, home, 'roo-rule'),
+  ];
+
+  for (const [base, scope] of [[home, 'global'], [cwd, 'project']]) {
+    const rooDir = path.join(base, '.roo');
+    if (!exists(rooDir)) continue;
+    let entries = [];
+    try { entries = fs.readdirSync(rooDir, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith('rules-')) continue;
+      rules.push(...walkRuleFiles(path.join(rooDir, entry.name), 'roo', scope, cwd, home, 'roo-mode-rule'));
     }
   }
   return rules;
@@ -336,12 +347,22 @@ function gatherCursorRules(cwd, home) {
 
 function gatherConfigFootprints(cwd, home) {
   const footprints = [];
-  for (const [key, rel] of Object.entries(CONFIG_DIRS)) {
-    const label = HARNESS_META[key].label;
-    const projectPath = path.join(cwd, rel);
-    const globalPath = path.join(home, rel);
-    if (exists(projectPath)) footprints.push({ key, label, scope: 'project', path: displayPath(projectPath, cwd, home) });
-    if (exists(globalPath)) footprints.push({ key, label, scope: 'global', path: displayPath(globalPath, cwd, home) });
+  const seen = new Set();
+  for (const spec of configPathSpecs('project')) {
+    const file = path.join(cwd, spec.rel);
+    const id = `project:${spec.key}:${file}`;
+    if (!seen.has(id) && exists(file)) {
+      seen.add(id);
+      footprints.push({ key: spec.key, label: spec.label, scope: 'project', path: displayPath(file, cwd, home) });
+    }
+  }
+  for (const spec of configPathSpecs('global')) {
+    const file = path.join(home, spec.rel);
+    const id = `global:${spec.key}:${file}`;
+    if (!seen.has(id) && exists(file)) {
+      seen.add(id);
+      footprints.push({ key: spec.key, label: spec.label, scope: 'global', path: displayPath(file, cwd, home) });
+    }
   }
   return footprints;
 }
@@ -368,24 +389,9 @@ function analyzeScope(skills, installedKeys) {
     if (copies.length > 1) duplicates.push({ name, copies });
     if (hasDrift) drift.push({ name, copies });
 
-    const availableToInstalled = (key) => {
-      if (key === 'codex') {
-        return copies.some(copy => copy.owner === 'portable' && copy.packageValid);
-      }
-
-      if (key === 'cursor') {
-        return copies.some(copy =>
-          ['portable', 'cursor', 'claude', 'codex'].includes(copy.owner) &&
-          copy.packageValid
-        );
-      }
-
-      if (key === 'claude') {
-        return copies.some(copy => copy.owner === 'claude' && copy.packageValid);
-      }
-
-      return copies.some(copy => copy.owner === key && copy.packageValid);
-    };
+    const availableToInstalled = (key) => copies.some(copy =>
+      visibleOwnersFor(key, copy.scope).has(copy.owner) && copy.packageValid
+    );
 
     let portableAcrossInstalled = false;
     let reason = 'Only one harness-specific copy found.';
@@ -405,7 +411,7 @@ function analyzeScope(skills, installedKeys) {
       } else {
         const present = installedKeys.filter(availableToInstalled);
         reason = present.length
-          ? `Available to ${present.map(k => HARNESS_META[k].label).join(', ')}, but not every installed agent.`
+          ? `Available to ${present.map(k => HARNESS_DEFINITIONS[k]?.label || k).join(', ')}, but not every installed agent.`
           : 'Not available to any installed agent in a supported location.';
       }
     } else if (hasPortableCopy && !hasDrift) {
@@ -504,17 +510,18 @@ export function scan({ cwd = process.cwd(), home = os.homedir(), installedHarnes
   home = path.resolve(home);
 
   const installedHarnesses = installedOverride
-    ? installedOverride.map(key => ({ key, label: HARNESS_META[key]?.label || key, evidence: [{ type: 'test-override', detail: key }] }))
+    ? installedOverride.map(key => ({ key, label: HARNESS_DEFINITIONS[key]?.label || key, evidence: [{ type: 'test-override', detail: key }] }))
     : detectInstalledHarnesses({ home });
   const installedKeys = installedHarnesses.map(h => h.key);
 
   const globalSkills = gatherSkills(home, 'global', cwd, home);
   const projectSkills = gatherSkills(cwd, 'project', cwd, home);
   const instructions = [
-    ...gatherInstructions(home, 'global', HOME_INSTRUCTIONS, cwd, home),
-    ...gatherInstructions(cwd, 'project', PROJECT_INSTRUCTIONS, cwd, home),
+    ...gatherInstructions(home, 'global', instructionSpecs('global'), cwd, home),
+    ...gatherInstructions(cwd, 'project', instructionSpecs('project'), cwd, home),
   ];
-  const cursorRules = gatherCursorRules(cwd, home);
+  const rules = gatherRules(cwd, home);
+  const cursorRules = rules.filter(rule => rule.owner === 'cursor');
   const configFootprints = gatherConfigFootprints(cwd, home);
 
   const globalAnalysis = analyzeScope(globalSkills, installedKeys);
@@ -532,6 +539,7 @@ export function scan({ cwd = process.cwd(), home = os.homedir(), installedHarnes
     project: { skills: projectSkills, ...projectAnalysis },
     instructions,
     cursorRules,
+    rules,
     findings,
     scoreDefinition: 'Global score = share of unique global skills available across every detected agent. No score is shown unless at least two supported agents are detected.',
   };

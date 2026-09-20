@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Agent Portability Check — Test your AI setup everywhere</title>
-  <meta name="description" content="Check whether your skills, instructions, MCP tools, and dependencies work across Claude Code, Codex, Cursor, and local or cloud runtimes.">
+  <meta name="description" content="Check whether your skills, instructions, MCP tools, and dependencies work across Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, and cloud runtimes.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
@@ -235,7 +235,7 @@
   <main>
     <section class="hero-copy" aria-labelledby="heroTitle">
       <h1 id="heroTitle">Your agent works here.<br>Will it work there?</h1>
-      <p class="lead" id="heroLead">Check whether your skills, instructions, MCP tools, and dependencies work across Claude Code, Codex, Cursor, and local or cloud runtimes.</p>
+      <p class="lead" id="heroLead">Check whether your skills, instructions, MCP tools, and dependencies work across Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, and cloud runtimes.</p>
     </section>
 
     <div id="refbox" class="ref"></div>
@@ -260,10 +260,15 @@
             <button class="target" data-target="claude" data-runtime="local">Claude Code</button>
             <button class="target" data-target="codex" data-runtime="local">Codex</button>
             <button class="target" data-target="cursor" data-runtime="local">Cursor</button>
+            <button class="target" data-target="gemini" data-runtime="local">Gemini CLI</button>
+            <button class="target" data-target="copilot" data-runtime="local">GitHub Copilot</button>
+            <button class="target" data-target="opencode" data-runtime="local">OpenCode</button>
+            <button class="target" data-target="roo" data-runtime="local">Roo Code</button>
           </div>
           <div class="target-group">
-            <span class="group-name">Runtime</span>
+            <span class="group-name">Cloud</span>
             <button class="target" data-target="cursor" data-runtime="cloud">Cursor Cloud</button>
+            <button class="target" data-target="copilot" data-runtime="cloud">Copilot Cloud Agent</button>
           </div>
         </div>
       </div>
@@ -281,6 +286,10 @@
                 <th scope="col" data-harness="claude">Claude Code</th>
                 <th scope="col" data-harness="codex">Codex</th>
                 <th scope="col" data-harness="cursor" id="cursorHeader">Cursor</th>
+                <th scope="col" data-harness="gemini">Gemini</th>
+                <th scope="col" data-harness="copilot">Copilot</th>
+                <th scope="col" data-harness="opencode">OpenCode</th>
+                <th scope="col" data-harness="roo">Roo</th>
               </tr>
             </thead>
             <tbody>
@@ -289,36 +298,60 @@
                 <td data-harness="claude"><span class="score">7 / 7</span></td>
                 <td data-harness="codex"><span class="score">6 / 7</span></td>
                 <td data-harness="cursor"><span class="score" id="cursorSkillScore">5 / 7</span></td>
+                <td data-harness="gemini"><span class="score">7 / 7</span></td>
+                <td data-harness="copilot"><span class="score">7 / 7</span></td>
+                <td data-harness="opencode"><span class="score">7 / 7</span></td>
+                <td data-harness="roo"><span class="score">7 / 7</span></td>
               </tr>
               <tr>
                 <th scope="row">Instructions</th>
                 <td data-harness="claude"><span class="status ready">Ready</span></td>
                 <td data-harness="codex"><span class="status fix">Auto-fix</span></td>
                 <td data-harness="cursor"><span class="status fix">Auto-fix</span></td>
+                <td data-harness="gemini"><span class="status manual">Context gap</span></td>
+                <td data-harness="copilot"><span class="status ready">Ready</span></td>
+                <td data-harness="opencode"><span class="status ready">Ready</span></td>
+                <td data-harness="roo"><span class="status ready">Ready</span></td>
               </tr>
               <tr>
                 <th scope="row">MCP servers</th>
                 <td data-harness="claude"><span class="status ready">Ready</span></td>
                 <td data-harness="codex"><span class="status ready">Ready</span></td>
                 <td data-harness="cursor"><span class="status manual" id="cursorMcpStatus">Manual</span></td>
+                <td data-harness="gemini"><span class="status ready">Ready</span></td>
+                <td data-harness="copilot"><span class="status ready">Ready</span></td>
+                <td data-harness="opencode"><span class="status ready">Ready</span></td>
+                <td data-harness="roo"><span class="status ready">Ready</span></td>
               </tr>
               <tr>
                 <th scope="row">Dependencies</th>
                 <td data-harness="claude"><span class="status ready">Ready</span></td>
                 <td data-harness="codex"><span class="status ready">Ready</span></td>
                 <td data-harness="cursor"><span class="status ready">Ready</span></td>
+                <td data-harness="gemini"><span class="status ready">Ready</span></td>
+                <td data-harness="copilot"><span class="status ready">Ready</span></td>
+                <td data-harness="opencode"><span class="status ready">Ready</span></td>
+                <td data-harness="roo"><span class="status ready">Ready</span></td>
               </tr>
               <tr>
                 <th scope="row">Discovery paths</th>
                 <td data-harness="claude"><span class="status fix">Auto-fix</span></td>
                 <td data-harness="codex"><span class="status fix">Auto-fix</span></td>
                 <td data-harness="cursor"><span class="status fix">Auto-fix</span></td>
+                <td data-harness="gemini"><span class="status ready">Ready</span></td>
+                <td data-harness="copilot"><span class="status ready">Ready</span></td>
+                <td data-harness="opencode"><span class="status ready">Ready</span></td>
+                <td data-harness="roo"><span class="status ready">Ready</span></td>
               </tr>
               <tr>
                 <th scope="row">Companion files</th>
                 <td data-harness="claude"><span class="status ready">Ready</span></td>
                 <td data-harness="codex"><span class="status ready">Ready</span></td>
                 <td data-harness="cursor"><span class="status manual">Manual</span></td>
+                <td data-harness="gemini"><span class="status ready">Ready</span></td>
+                <td data-harness="copilot"><span class="status ready">Ready</span></td>
+                <td data-harness="opencode"><span class="status ready">Ready</span></td>
+                <td data-harness="roo"><span class="status ready">Ready</span></td>
               </tr>
             </tbody>
           </table>
@@ -397,10 +430,22 @@ const params = new URLSearchParams(location.search);
 const ref = (params.get('ref') || '').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
 const wantsFix = params.get('fix') === '1';
 const team = (params.get('team') || '').replace(/[^A-Za-z0-9_-]/g,'').slice(0,40);
-const initialTarget = ['claude','codex','cursor'].includes(params.get('target')) ? params.get('target') : '';
-const initialRuntime = params.get('runtime') === 'cloud' && initialTarget === 'cursor' ? 'cloud' : 'local';
+const supportedTargets = ['claude','codex','cursor','gemini','copilot','opencode','roo'];
+const initialTarget = supportedTargets.includes(params.get('target')) ? params.get('target') : '';
+const cloudTargets = new Set(['cursor','copilot']);
+const initialRuntime = params.get('runtime') === 'cloud' && cloudTargets.has(initialTarget) ? 'cloud' : 'local';
 
-const labels = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', '': 'your current setup' };
+const labels = {
+  claude: 'Claude Code',
+  codex: 'Codex',
+  cursor: 'Cursor',
+  gemini: 'Gemini CLI',
+  copilot: 'GitHub Copilot',
+  opencode: 'OpenCode',
+  roo: 'Roo Code',
+  '': 'your current setup'
+};
+const cloudLabels = { cursor: 'Cursor Cloud', copilot: 'GitHub Copilot Cloud Agent' };
 const targetButtons = [...document.querySelectorAll('.target')];
 const commandEl = document.getElementById('command');
 const copyEl = document.getElementById('copy');
@@ -457,6 +502,51 @@ const findings = {
     fix: 'Restore scripts/check.sh or update the skill reference',
     summary: 'Checking against Cursor'
   },
+  gemini: {
+    tone: 'manual',
+    meta: '7 skill packages ready · context review',
+    title: 'project-instructions',
+    text: 'Shared skills work through .agents/skills, but Gemini CLI uses GEMINI.md by default for persistent context.',
+    action: 'Context review',
+    fix: 'Translate or configure shared instructions without overwriting Gemini-specific context',
+    summary: 'Checking against Gemini CLI'
+  },
+  copilot: {
+    tone: 'ready',
+    meta: '7 skill packages ready',
+    title: 'shared-agent-skills',
+    text: 'GitHub Copilot can discover interoperable .agents/skills packages directly.',
+    action: 'Ready',
+    fix: 'Keep shared skills canonical in .agents/skills',
+    summary: 'Checking against GitHub Copilot'
+  },
+  opencode: {
+    tone: 'ready',
+    meta: '7 skill packages ready',
+    title: 'shared-agent-skills',
+    text: 'OpenCode discovers .agents/skills directly and also supports its native .opencode/skills location.',
+    action: 'Ready',
+    fix: 'Keep shared skills canonical in .agents/skills',
+    summary: 'Checking against OpenCode'
+  },
+  roo: {
+    tone: 'ready',
+    meta: '7 skill packages ready',
+    title: 'shared-agent-skills',
+    text: 'Roo Code discovers .agents/skills directly while preserving Roo-specific and mode-specific overrides.',
+    action: 'Ready',
+    fix: 'Use .roo/skills-* only when a workflow is intentionally mode-specific',
+    summary: 'Checking against Roo Code'
+  },
+  copilotCloud: {
+    tone: 'manual',
+    meta: 'Repository visibility required',
+    title: 'local-only-skill',
+    text: 'A personal skill on this machine is not automatically available to the Copilot cloud agent.',
+    action: 'Repository fix',
+    fix: 'Move the canonical package into project .agents/skills before relying on the cloud agent',
+    summary: 'Checking against Copilot Cloud Agent'
+  },
   cursorCloud: {
     tone: 'manual',
     meta: '2 ready · 2 auto-fix · 3 manual',
@@ -489,7 +579,7 @@ function updateUI() {
   commandEl.textContent = buildCommand();
   copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy and run';
   commandIntro.textContent = selectedTarget
-    ? 'Run a local check against ' + labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '') + '.'
+    ? 'Run a local check against ' + (selectedRuntime === 'cloud' ? cloudLabels[selectedTarget] : labels[selectedTarget]) + '.'
     : 'Run the check locally. Nothing changes unless you approve it.';
 
   const selectedHarness = selectedTarget || '';
@@ -498,8 +588,9 @@ function updateUI() {
     cell.classList.toggle('selected', cell.dataset.harness === selectedHarness);
   });
 
-  const isCloud = selectedTarget === 'cursor' && selectedRuntime === 'cloud';
-  const finding = isCloud ? findings.cursorCloud : findings[selectedTarget || 'current'];
+  const isCloud = cloudTargets.has(selectedTarget) && selectedRuntime === 'cloud';
+  const cloudFindingKey = selectedTarget === 'copilot' ? 'copilotCloud' : 'cursorCloud';
+  const finding = isCloud ? findings[cloudFindingKey] : findings[selectedTarget || 'current'];
   matrixSummary.textContent = finding.summary;
   findingMeta.textContent = finding.meta;
   findingMeta.className = 'finding-meta ' + finding.tone;
@@ -508,11 +599,11 @@ function updateUI() {
   findingAction.textContent = finding.action;
   findingAction.className = finding.tone;
   findingFix.textContent = finding.fix;
-  cursorSkillScore.textContent = isCloud ? '4 / 7' : '5 / 7';
-  cursorMcpStatus.textContent = isCloud ? 'Cloud gap' : 'Manual';
-  cursorHeader.textContent = isCloud ? 'Cursor Cloud' : 'Cursor';
+  cursorSkillScore.textContent = selectedTarget === 'cursor' && isCloud ? '4 / 7' : '5 / 7';
+  cursorMcpStatus.textContent = selectedTarget === 'cursor' && isCloud ? 'Cloud gap' : 'Manual';
+  cursorHeader.textContent = selectedTarget === 'cursor' && isCloud ? 'Cursor Cloud' : 'Cursor';
   if (selectedTarget) {
-    const targetLabel = labels[selectedTarget] + (isCloud ? ' Cloud' : '');
+    const targetLabel = isCloud ? cloudLabels[selectedTarget] : labels[selectedTarget];
     proofResultTitle.textContent = '7 / 7 ready for ' + targetLabel;
     proofText.textContent = 'Once the target check passes, generate a shareable result or add a compatibility badge to your README.';
   } else {

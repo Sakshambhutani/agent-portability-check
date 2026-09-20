@@ -1,3 +1,4 @@
+import { HARNESS_ORDER } from '../src/harnesses.js';
 import {
   cleanDisplayName,
   requireSupabaseUser,
@@ -19,7 +20,7 @@ export default async function handler(req, res) {
 
   const input = req.body && typeof req.body === 'object' ? req.body : {};
   const name = cleanDisplayName(input.name) || 'My Agent Team';
-  const target = ['claude','codex','cursor'].includes(input.target) ? input.target : null;
+  const target = HARNESS_ORDER.includes(input.target) ? input.target : null;
   const runtime = input.runtime === 'cloud' ? 'cloud' : 'local';
   const displayName =
     cleanDisplayName(input.display_name) ||

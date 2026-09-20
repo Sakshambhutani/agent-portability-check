@@ -6,24 +6,16 @@ import {
   evaluateDependencies,
   normalizeMcpServers,
 } from './dependencies.js';
+import {
+  acceptsInstructionOwner,
+  harnessDefinition,
+  targetKeys,
+  visibleOwnersFor,
+} from './harnesses.js';
 
-export const TARGETS = {
-  codex: {
-    label: 'Codex',
-    visibleOwners: new Set(['portable']),
-    fix: 'Move the canonical skill package to ~/.agents/skills.',
-  },
-  claude: {
-    label: 'Claude Code',
-    visibleOwners: new Set(['claude']),
-    fix: 'Add a Claude-discoverable adapter in ~/.claude/skills.',
-  },
-  cursor: {
-    label: 'Cursor',
-    visibleOwners: new Set(['portable','cursor','claude','codex']),
-    fix: 'Move the canonical skill package to a Cursor-compatible skill location.',
-  },
-};
+export const TARGETS = Object.fromEntries(
+  targetKeys().map(key => [key, harnessDefinition(key)])
+);
 
 function resolveDisplayPath(displayPath, { cwd, home }) {
   if (displayPath.startsWith('~/')) return path.join(home, displayPath.slice(2));
@@ -96,8 +88,9 @@ function structuralProblems(inspected, target) {
   if (inspected.frontmatter.name && !/^[a-z0-9-]+$/.test(inspected.frontmatter.name)) problems.push('Skill name is not lowercase kebab-case.');
   if (inspected.frontmatter.name.length > 64) problems.push('Skill name exceeds 64 characters.');
   if (inspected.frontmatter.description.length > 1024) problems.push('Skill description exceeds 1024 characters.');
-  if (target === 'cursor' && inspected.frontmatter.name && inspected.frontmatter.name !== inspected.folderName) {
-    problems.push(`Cursor expects the skill name "${inspected.frontmatter.name}" to match folder "${inspected.folderName}".`);
+  const targetMeta = harnessDefinition(target);
+  if (targetMeta?.requireFolderNameMatch && inspected.frontmatter.name && inspected.frontmatter.name !== inspected.folderName) {
+    problems.push(`${targetMeta.label} expects the skill name "${inspected.frontmatter.name}" to match folder "${inspected.folderName}".`);
   }
   if (inspected.missingReferences.length) {
     problems.push(`Missing companion file${inspected.missingReferences.length === 1 ? '' : 's'}: ${inspected.missingReferences.join(', ')}.`);
@@ -106,11 +99,17 @@ function structuralProblems(inspected, target) {
 }
 
 function targetCanSee(copy, target, runtime) {
-  if (target === 'cursor' && runtime === 'cloud') {
-    return copy.scope === 'project' && ['portable','cursor','claude','codex'].includes(copy.owner) && copy.packageValid;
+  const meta = harnessDefinition(target);
+  if (!meta) return false;
+  if (runtime === 'cloud') {
+    return Boolean(
+      meta.cloud &&
+      copy.scope === 'project' &&
+      visibleOwnersFor(target, 'project').has(copy.owner) &&
+      copy.packageValid
+    );
   }
-  const meta = TARGETS[target];
-  return Boolean(meta && meta.visibleOwners.has(copy.owner) && copy.packageValid);
+  return Boolean(visibleOwnersFor(target, copy.scope).has(copy.owner) && copy.packageValid);
 }
 
 function chooseInspection(status, target, runtime, context) {
@@ -124,28 +123,76 @@ function chooseInspection(status, target, runtime, context) {
   return portable || inspected[0];
 }
 
-function cloudLocalOnlyReason(status) {
-  const projectVisible = status.copies.some(copy => copy.scope === 'project' && ['portable','cursor','claude','codex'].includes(copy.owner) && copy.packageValid);
+function cloudLocalOnlyReason(status, target) {
+  const meta = harnessDefinition(target);
+  const projectVisible = status.copies.some(copy =>
+    copy.scope === 'project' &&
+    visibleOwnersFor(target, 'project').has(copy.owner) &&
+    copy.packageValid
+  );
   if (projectVisible) return null;
-  const globalCursor = status.copies.some(copy => copy.scope === 'global' && copy.owner === 'cursor');
-  if (globalCursor) return 'This is a user-level Cursor skill. Local presence alone does not prove Cursor Cloud receives it; enable cloud skill sync or move it into the repository.';
+
+  const globalTargetCopy = status.copies.some(copy =>
+    copy.scope === 'global' && visibleOwnersFor(target, 'global').has(copy.owner)
+  );
+  if (globalTargetCopy) {
+    return `This skill is available only in a user-level local directory. Local presence does not prove ${meta?.cloudLabel || meta?.label || target} receives it; put the skill in the repository.`;
+  }
+
   const globalOther = status.copies.some(copy => copy.scope === 'global');
-  if (globalOther) return 'This skill exists only in a user-level local directory. Put it in the repository or explicitly sync a Cursor user-level copy before relying on Cursor Cloud.';
+  if (globalOther) {
+    return `This skill exists only in a user-level local directory. Put it in the repository before relying on ${meta?.cloudLabel || meta?.label || target}.`;
+  }
   return null;
 }
 
 function buildContextRisks(report, target, runtime) {
   const risks = [];
+  const meta = harnessDefinition(target);
+  const targetLabel = runtime === 'cloud' ? (meta?.cloudLabel || `${meta?.label || target} Cloud`) : (meta?.label || target);
+
   for (const instruction of report.instructions || []) {
-    let reason = '';
-    if (target === 'codex' && instruction.owner === 'claude') reason = 'Claude-specific instructions are not automatically part of Codex AGENTS.md instruction discovery.';
-    if (target === 'claude' && (instruction.owner === 'shared' || instruction.owner === 'codex')) reason = 'AGENTS.md/Codex-specific instructions are not automatically loaded as Claude Code CLAUDE.md memory.';
-    if (target === 'cursor' && runtime === 'cloud' && instruction.scope === 'global') reason = 'Global instruction files on this machine are not part of the cloned Cursor Cloud repository.';
-    if (reason) risks.push({ kind: 'instruction', severity: 'manual', path: instruction.path, reason });
+    if (runtime === 'cloud' && instruction.scope === 'global') {
+      risks.push({
+        kind: 'instruction',
+        severity: 'manual',
+        path: instruction.path,
+        reason: `Global instruction files on this machine are not part of the repository used by ${targetLabel}.`,
+      });
+      continue;
+    }
+
+    if (!acceptsInstructionOwner(target, instruction.owner)) {
+      let reason = `${targetLabel} does not consume this instruction source as its native/default instruction format.`;
+      if (target === 'claude' && instruction.owner === 'shared') {
+        reason = 'AGENTS.md instructions are not automatically loaded as Claude Code CLAUDE.md memory.';
+      } else if (target === 'gemini' && instruction.owner === 'shared') {
+        reason = 'Gemini CLI uses GEMINI.md by default; AGENTS.md is only used if the context filename is explicitly configured.';
+      } else if (target === 'copilot' && ['claude','gemini'].includes(instruction.owner)) {
+        reason = 'Some GitHub Copilot surfaces can consume CLAUDE.md/GEMINI.md, but support is not uniform across Copilot surfaces; use AGENTS.md or Copilot instructions for a portable default.';
+      }
+      risks.push({ kind: 'instruction', severity: 'manual', path: instruction.path, reason });
+    }
   }
-  for (const rule of report.cursorRules || []) {
-    if (target !== 'cursor') risks.push({ kind: 'cursor-rule', severity: 'manual', path: rule.path, reason: `${TARGETS[target].label} does not consume Cursor .cursor/rules as its native instruction format.` });
-    else if (runtime === 'cloud' && rule.scope === 'global') risks.push({ kind: 'cursor-rule', severity: 'manual', path: rule.path, reason: 'Global Cursor rules are local to this machine and are not part of the cloud repository.' });
+
+  for (const rule of report.rules || report.cursorRules || []) {
+    if (runtime === 'cloud' && rule.scope === 'global') {
+      risks.push({
+        kind: rule.kind || 'rule',
+        severity: 'manual',
+        path: rule.path,
+        reason: `Global ${rule.owner} rules on this machine are not part of the repository used by ${targetLabel}.`,
+      });
+      continue;
+    }
+    if (rule.owner !== target) {
+      risks.push({
+        kind: rule.kind || 'rule',
+        severity: 'manual',
+        path: rule.path,
+        reason: `${targetLabel} does not consume ${rule.owner}-specific rule files as its native/default rule format.`,
+      });
+    }
   }
   return risks;
 }
@@ -165,12 +212,15 @@ export function analyzeTargetCompatibility(report, target, {
   commandCheck = defaultCommandCheck,
   mcpServers = null,
 } = {}) {
-  if (!TARGETS[target]) throw new Error(`Unsupported target "${target}". Use claude, codex, or cursor.`);
+  if (!TARGETS[target]) throw new Error(`Unsupported target "${target}". Use ${targetKeys().join(', ')}.`);
   if (!['local','cloud'].includes(runtime)) throw new Error('Unsupported runtime. Use local or cloud.');
-  if (runtime === 'cloud' && target !== 'cursor') throw new Error('Cloud runtime checks are currently supported only for Cursor.');
+  const selectedMeta = harnessDefinition(target);
+  if (runtime === 'cloud' && !selectedMeta?.cloud) {
+    throw new Error(`Cloud runtime checks are not supported for ${selectedMeta?.label || target}.`);
+  }
 
   const context = { cwd: path.resolve(cwd), home: path.resolve(home) };
-  const targetMeta = TARGETS[target];
+  const targetMeta = harnessDefinition(target);
   const resolvedMcpServers = normalizeMcpServers(mcpServers, context);
   const skills = [];
   const localOnlyRisks = [];
@@ -190,8 +240,8 @@ export function analyzeTargetCompatibility(report, target, {
         continue;
       }
 
-      if (target === 'cursor' && runtime === 'cloud') {
-        const localReason = cloudLocalOnlyReason(status);
+      if (runtime === 'cloud') {
+        const localReason = cloudLocalOnlyReason(status, target);
         if (localReason) {
           localOnlyRisks.push({ name: status.name, scope, reason: localReason });
           const dependencies = evaluateDependencies({ content: inspection.content, resolvedReferences: inspection.resolvedReferences, target, runtime, env, commandCheck, mcpServers: resolvedMcpServers });
@@ -203,7 +253,7 @@ export function analyzeTargetCompatibility(report, target, {
       const visible = status.copies.some(copy => targetCanSee(copy, target, runtime));
       const baseStatus = visible ? 'ready' : 'auto-fix';
       const baseReason = visible
-        ? `${runtime === 'cloud' ? 'Cursor Cloud' : targetMeta.label} can discover this structurally valid skill package.`
+        ? `${runtime === 'cloud' ? (targetMeta.cloudLabel || `${targetMeta.label} Cloud`) : targetMeta.label} can discover this structurally valid skill package.`
         : `The skill package is valid, but ${targetMeta.label} cannot discover it from its current location.`;
       const fix = visible ? null : targetMeta.fix;
       const dependencies = evaluateDependencies({ content: inspection.content, resolvedReferences: inspection.resolvedReferences, target, runtime, env, commandCheck, mcpServers: resolvedMcpServers });
@@ -227,7 +277,9 @@ export function analyzeTargetCompatibility(report, target, {
   const contextRisks = buildContextRisks(report, target, runtime);
   const dependencyRiskCount = skills.reduce((sum, skill) => sum + (skill.dependencies?.blockers?.length || 0), 0);
   const targetInstalled = report.installedHarnesses.some(item => item.key === target);
-  const targetLabel = target === 'cursor' && runtime === 'cloud' ? 'Cursor Cloud' : targetMeta.label;
+  const targetLabel = runtime === 'cloud'
+    ? (targetMeta.cloudLabel || `${targetMeta.label} Cloud`)
+    : targetMeta.label;
   const skillPackagesReady = Boolean(
     summary.total > 0 &&
     summary.ready === summary.total &&

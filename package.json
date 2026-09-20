@@ -1,7 +1,7 @@
 {
   "name": "agent-portability-check",
-  "version": "0.9.0",
-  "description": "A resumable local-first checker for AI agent portability, migration compatibility, safe fixes, sharing, and team comparison.",
+  "version": "0.10.0",
+  "description": "A local-first checker for AI agent portability across Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Roo Code, and cloud runtimes.",
   "type": "module",
   "bin": {
     "agent-portability-check": "./src/index.js"
@@ -23,7 +23,11 @@
     "cursor",
     "skills",
     "ai",
-    "portability"
+    "portability",
+    "gemini",
+    "copilot",
+    "opencode",
+    "roo"
   ],
   "homepage": "https://agent-portability-check.vercel.app",
   "repository": {

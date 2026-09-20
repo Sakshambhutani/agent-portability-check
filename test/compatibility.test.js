@@ -225,3 +225,89 @@ test('context gaps do not erase a 100% skill-package achievement', () => {
   assert.equal(target.skillPackagesReady, true);
   assert.equal(target.fullyReady, false);
 });
+
+
+for (const targetName of ['gemini', 'copilot', 'opencode', 'roo']) {
+  test(`shared Agent Skills are ready for ${targetName}`, () => {
+    const { cwd, home } = fixture();
+    write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+    const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+    const target = analyzeTargetCompatibility(report, targetName, { cwd, home });
+    assert.equal(target.summary.ready, 1);
+    assert.equal(target.summary.manual, 0);
+  });
+}
+
+test('native Gemini skill canonicalizes for Codex but is ready for Gemini', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.gemini/skills/review/SKILL.md'), skill('review'));
+  const report = scan({ cwd, home, installedHarnesses: ['gemini'] });
+  assert.equal(analyzeTargetCompatibility(report, 'gemini', { cwd, home }).summary.ready, 1);
+  assert.equal(analyzeTargetCompatibility(report, 'codex', { cwd, home }).summary.autoFix, 1);
+});
+
+test('Copilot project .github skills are target-ready', () => {
+  const { cwd, home } = fixture();
+  write(path.join(cwd, '.github/skills/review/SKILL.md'), skill('review'));
+  const report = scan({ cwd, home, installedHarnesses: ['copilot'] });
+  const target = analyzeTargetCompatibility(report, 'copilot', { cwd, home });
+  assert.equal(target.summary.ready, 1);
+});
+
+test('OpenCode native skills are target-ready', () => {
+  const { cwd, home } = fixture();
+  write(path.join(cwd, '.opencode/skills/review/SKILL.md'), skill('review'));
+  const report = scan({ cwd, home, installedHarnesses: ['opencode'] });
+  const target = analyzeTargetCompatibility(report, 'opencode', { cwd, home });
+  assert.equal(target.summary.ready, 1);
+});
+
+test('Roo native and mode-specific skills are target-ready', () => {
+  const { cwd, home } = fixture();
+  write(path.join(cwd, '.roo/skills/review/SKILL.md'), skill('review'));
+  write(path.join(cwd, '.roo/skills-code/refactor/SKILL.md'), skill('refactor'));
+  const report = scan({ cwd, home, installedHarnesses: ['roo'] });
+  const target = analyzeTargetCompatibility(report, 'roo', { cwd, home });
+  assert.equal(target.summary.ready, 2);
+});
+
+test('Gemini reports AGENTS.md as a context gap by default', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+  write(path.join(cwd, 'AGENTS.md'), '# Shared instructions');
+  const report = scan({ cwd, home, installedHarnesses: ['codex'] });
+  const target = analyzeTargetCompatibility(report, 'gemini', { cwd, home });
+  assert.equal(target.summary.ready, 1);
+  assert.ok(target.contextRisks.some(risk => /GEMINI\.md|AGENTS\.md/i.test(risk.reason)));
+});
+
+test('Copilot Cloud requires repository-visible skills', () => {
+  const { cwd, home } = fixture();
+  write(path.join(home, '.agents/skills/review/SKILL.md'), skill('review'));
+  let report = scan({ cwd, home, installedHarnesses: ['copilot'] });
+  let target = analyzeTargetCompatibility(report, 'copilot', { cwd, home, runtime: 'cloud' });
+  assert.equal(target.summary.manual, 1);
+
+  write(path.join(cwd, '.agents/skills/review/SKILL.md'), skill('review'));
+  report = scan({ cwd, home, installedHarnesses: ['copilot'] });
+  target = analyzeTargetCompatibility(report, 'copilot', { cwd, home, runtime: 'cloud' });
+  assert.equal(target.summary.ready, 1);
+});
+
+test('new harness MCP configs satisfy explicit MCP references', () => {
+  const cases = [
+    ['gemini', '.gemini/settings.json', { mcpServers: { datadog: { command: 'npx' } } }],
+    ['copilot', '.github/mcp.json', { mcpServers: { datadog: { type: 'local', command: 'npx' } } }],
+    ['opencode', 'opencode.json', { mcp: { datadog: { type: 'local', command: ['npx'] } } }],
+    ['roo', '.roo/mcp.json', { mcpServers: { datadog: { command: 'npx' } } }],
+  ];
+
+  for (const [targetName, rel, config] of cases) {
+    const { cwd, home } = fixture();
+    write(path.join(home, '.agents/skills/observe/SKILL.md'), skill('observe', 'Use mcp__datadog__search for incidents.'));
+    write(path.join(cwd, rel), JSON.stringify(config));
+    const report = scan({ cwd, home, installedHarnesses: [targetName] });
+    const target = analyzeTargetCompatibility(report, targetName, { cwd, home });
+    assert.equal(target.summary.ready, 1, targetName);
+  }
+});

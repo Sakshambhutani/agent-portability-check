@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { harnessDefinition } from './harnesses.js';
 
 function resolveDisplayPath(displayPath, { cwd, home }) {
   if (displayPath.startsWith('~/')) return path.join(home, displayPath.slice(2));
@@ -36,16 +37,18 @@ function packageIssueReason(copy) {
 }
 
 function scopeRoots(scope, { cwd, home }) {
-  if (scope === 'project') {
-    return {
-      portableRoot: path.join(cwd, '.agents', 'skills'),
-      claudeRoot: path.join(cwd, '.claude', 'skills'),
-    };
-  }
+  const base = scope === 'project' ? cwd : home;
   return {
-    portableRoot: path.join(home, '.agents', 'skills'),
-    claudeRoot: path.join(home, '.claude', 'skills'),
+    base,
+    portableRoot: path.join(base, '.agents', 'skills'),
   };
+}
+
+function adapterRootFor(target, scope, context) {
+  const meta = harnessDefinition(target);
+  if (!meta?.needsPortableAdapter || !meta.adapterRoot) return null;
+  const base = scope === 'project' ? context.cwd : context.home;
+  return path.join(base, meta.adapterRoot);
 }
 
 export function planPortableReadyFix(report, {
@@ -115,10 +118,23 @@ export function planPortableReadyFix(report, {
         alreadyReady.push({ name: status.name, scope });
       }
 
-      if (installed.has('claude') && !status.copies.some(copy => copy.owner === 'claude') && canonicalDir) {
-        const linkPath = path.join(roots.claudeRoot, path.basename(canonicalDir));
+      for (const adapterTarget of installed) {
+        const meta = harnessDefinition(adapterTarget);
+        if (!meta?.needsPortableAdapter || !canonicalDir) continue;
+        if (status.copies.some(copy => copy.owner === adapterTarget)) continue;
+        const adapterRoot = adapterRootFor(adapterTarget, scope, context);
+        if (!adapterRoot) continue;
+        const linkPath = path.join(adapterRoot, path.basename(canonicalDir));
         if (!fs.existsSync(linkPath)) {
-          adapterPlans.push({ name: status.name, scope, kind: 'claude-symlink', targetDir: canonicalDir, linkPath });
+          adapterPlans.push({
+            name: status.name,
+            scope,
+            target: adapterTarget,
+            label: meta.label,
+            kind: 'discovery-symlink',
+            targetDir: canonicalDir,
+            linkPath,
+          });
         }
       }
     }
@@ -157,7 +173,7 @@ export function applyPortableReadyFix(plan) {
       continue;
     }
     fs.symlinkSync(item.targetDir, item.linkPath, 'dir');
-    applied.push({ ...item, action: 'created_claude_adapter' });
+    applied.push({ ...item, action: 'created_discovery_adapter' });
   }
 
   return { applied, skipped };
