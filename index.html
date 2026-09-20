@@ -40,21 +40,21 @@
 
   <main>
     <div class="eyebrow">FREE · OPEN SOURCE · LOCAL-FIRST</div>
-    <h1>Switching AI agents? See which skills won’t carry over in 10 seconds.</h1>
-    <p class="lead">Check your skills before moving between Codex, Claude Code, and Cursor. Get a per-skill answer: <strong>Ready</strong>, <strong>Auto-fix</strong>, or <strong>Manual attention</strong>.</p>
+    <h1 id="heroTitle">How portable is your AI setup?</h1>
+    <p class="lead" id="heroLead">Check your current setup, or simulate a move between Codex, Claude Code, and Cursor. See what is <strong>Ready</strong>, <strong>Auto-fix</strong>, or needs <strong>Manual attention</strong>.</p>
 
-    <div class="targets" aria-label="Choose a migration target">
+    <div class="targets" aria-label="Choose what to check">
+      <button class="target" data-target="" data-runtime="local">Check current setup</button>
       <button class="target" data-target="claude" data-runtime="local">Moving to Claude Code</button>
       <button class="target" data-target="codex" data-runtime="local">Moving to Codex</button>
       <button class="target" data-target="cursor" data-runtime="local">Moving to Cursor</button>
       <button class="target" data-target="cursor" data-runtime="cloud">Moving to Cursor Cloud</button>
-      <button class="target" data-target="" data-runtime="local">Check current setup</button>
     </div>
 
     <div id="refbox" class="ref"></div>
 
     <div class="terminal">
-      <code id="command">npx github:Sakshambhutani/agent-portability-check --target claude</code>
+      <code id="command">npx github:Sakshambhutani/agent-portability-check</code>
       <button id="copy" class="btn">Copy 10-second check</button>
     </div>
 
@@ -66,18 +66,14 @@
     </div>
 
     <div class="example">
-      <div class="example-head" id="exampleHead">Example · migration to Claude Code</div>
-      <pre id="exampleText">TARGET COMPATIBILITY — Claude Code
+      <div class="example-head" id="exampleHead">Example · current setup</div>
+      <pre id="exampleText">GLOBAL SETUP
 ────────────────────────────────────
-Skills checked       7
-Ready                3
-Auto-fix             3
-Manual attention     1
+Skills               7
+Portable-ready       3 / 7
+Drifted copies       1
 
-✓ code-review — READY
-⚡ deploy-prod — AUTO-FIX
-✕ incident-response — MANUAL
-  Missing companion file: scripts/check.sh</pre>
+Run with --fix to preview safe changes.</pre>
     </div>
 
     <div class="grid">
@@ -108,11 +104,13 @@ const params = new URLSearchParams(location.search);
 const ref = (params.get('ref') || '').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
 const wantsFix = params.get('fix') === '1';
 const team = (params.get('team') || '').replace(/[^A-Za-z0-9_-]/g,'').slice(0,40);
-const initialTarget = ['claude','codex','cursor'].includes(params.get('target')) ? params.get('target') : (wantsFix ? '' : 'claude');
+const initialTarget = ['claude','codex','cursor'].includes(params.get('target')) ? params.get('target') : '';
 const initialRuntime = params.get('runtime') === 'cloud' && initialTarget === 'cursor' ? 'cloud' : 'local';
 
 const labels = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', '': 'your current setup' };
 const targetButtons = [...document.querySelectorAll('.target')];
+const heroTitle = document.getElementById('heroTitle');
+const heroLead = document.getElementById('heroLead');
 const commandEl = document.getElementById('command');
 const copyEl = document.getElementById('copy');
 const exampleHead = document.getElementById('exampleHead');
@@ -135,6 +133,15 @@ function updateUI() {
   targetButtons.forEach(button => button.classList.toggle('active', button.dataset.target === selectedTarget && (button.dataset.runtime || 'local') === selectedRuntime));
   commandEl.textContent = buildCommand();
   copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy 10-second check';
+
+  if (selectedTarget) {
+    const label = labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '');
+    heroTitle.textContent = 'Moving to ' + label + '? See what won’t carry over.';
+    heroLead.innerHTML = 'Run a local compatibility check before you move. See what is <strong>Ready</strong>, what can be <strong>Auto-fixed</strong>, and what needs <strong>Manual attention</strong>.';
+  } else {
+    heroTitle.textContent = 'How portable is your AI setup?';
+    heroLead.innerHTML = 'Check your current setup, or simulate a move between Codex, Claude Code, and Cursor. See what is <strong>Ready</strong>, <strong>Auto-fix</strong>, or needs <strong>Manual attention</strong>.';
+  }
 
   if (selectedTarget) {
     const label = labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '');
