@@ -16,7 +16,13 @@ function cleanRef(value) {
 }
 
 function cleanTeam(value) {
-  return typeof value === 'string'\n    ? value.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40)\n    : '';\n}\n\nfunction cleanTarget(value) {\n  return ['claude', 'codex', 'cursor'].includes(value) ? value : '';
+  return typeof value === 'string'
+    ? value.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40)
+    : '';
+}
+
+function cleanTarget(value) {
+  return ['claude', 'codex', 'cursor'].includes(value) ? value : '';
 }
 
 function cleanAgents(value) {
@@ -31,7 +37,9 @@ function cleanAgents(value) {
 const LABELS = { codex: 'Codex', claude: 'Claude Code', cursor: 'Cursor' };
 
 export default function handler(req, res) {
-  const ref = cleanRef(req.query.ref);\n  const teamCode = cleanTeam(req.query.team);\n  const score = req.query.score === 'na' ? null : intParam(req.query.score, 0, 100, null);
+  const ref = cleanRef(req.query.ref);
+  const teamCode = cleanTeam(req.query.team);
+  const score = req.query.score === 'na' ? null : intParam(req.query.score, 0, 100, null);
   const total = intParam(req.query.total, 0, 999, 0);
   const portable = intParam(req.query.portable, 0, total || 999, 0);
   const ready = intParam(req.query.ready ?? req.query.shared, 0, total || 999, portable);
@@ -69,14 +77,18 @@ export default function handler(req, res) {
   const checkParams = new URLSearchParams();
   if (ref) checkParams.set('ref', ref);
   if (target) checkParams.set('target', target);
-  if (runtime === 'cloud') checkParams.set('runtime', 'cloud');\n  if (teamCode) checkParams.set('team', teamCode);\n  const checkUrl = `${origin}/?${checkParams.toString()}`;
+  if (runtime === 'cloud') checkParams.set('runtime', 'cloud');
+  if (teamCode) checkParams.set('team', teamCode);
+  const checkUrl = `${origin}/?${checkParams.toString()}`;
 
   const fixCommand = [
     'npx github:Sakshambhutani/agent-portability-check',
     target ? `--target ${target}` : '',
     runtime === 'cloud' ? '--runtime cloud' : '',
     '--fix',
-    ref ? `--ref ${ref}` : '',\n    teamCode ? `--team ${teamCode}` : '',\n  ].filter(Boolean).join(' ');
+    ref ? `--ref ${ref}` : '',
+    teamCode ? `--team ${teamCode}` : '',
+  ].filter(Boolean).join(' ');
 
   const title = targetComplete
     ? `My AI setup is ready for ${targetLabel}`
@@ -121,7 +133,9 @@ export default function handler(req, res) {
     : `I made my AI setup 100% portable-ready. ${ready}/${total} skills are now in shared format.`;
 
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareSentence + ' Check yours:')}&url=${encodeURIComponent(canonical)}`;
-  const postText = `${shareSentence}\n\nCheck yours: ${canonical}`;
+  const postText = `${shareSentence}
+
+Check yours: ${canonical}`;
 
   const hero = target
     ? `${targetReady} / ${targetTotal}`
@@ -180,7 +194,12 @@ export default function handler(req, res) {
     .primary{background:#fff;color:#0b0d10}.secondary{background:#1c232b;color:#fff;border:1px solid #303945}
     .copybox{margin-top:22px;background:#0d1116;border:1px dashed #303945;border-radius:14px;padding:16px;white-space:pre-wrap;line-height:1.5;color:#cbd4dd;font-size:14px}
     .cta{margin-top:30px;padding-top:26px;border-top:1px solid #2a313a;display:flex;justify-content:space-between;gap:18px;align-items:end}
-    .cta h2{margin:0 0 8px;font-size:23px}.muted{color:#94a0ad;margin:0}\n    .identity{margin-top:26px;padding:22px;border:1px solid #2a313a;border-radius:18px;background:#0d1116}\n    .identity input{width:100%;background:#090c0f;color:#fff;border:1px solid #303945;border-radius:11px;padding:12px 13px;margin-top:10px}\n    .identity .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.hidden{display:none!important}\n    .identity-status{color:#9aa6b2;margin-top:12px;min-height:22px}\n    @media(max-width:680px){.card{padding:28px}.cta{align-items:flex-start;flex-direction:column}}
+    .cta h2{margin:0 0 8px;font-size:23px}.muted{color:#94a0ad;margin:0}
+    .identity{margin-top:26px;padding:22px;border:1px solid #2a313a;border-radius:18px;background:#0d1116}
+    .identity input{width:100%;background:#090c0f;color:#fff;border:1px solid #303945;border-radius:11px;padding:12px 13px;margin-top:10px}
+    .identity .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.hidden{display:none!important}
+    .identity-status{color:#9aa6b2;margin-top:12px;min-height:22px}
+    @media(max-width:680px){.card{padding:28px}.cta{align-items:flex-start;flex-direction:column}}
   </style>
 </head>
 <body>
@@ -241,7 +260,24 @@ export default function handler(req, res) {
 const referralId = ${JSON.stringify(ref)};
 const postText = ${JSON.stringify(postText)};
 const fixCommand = ${JSON.stringify(fixCommand)};
-const badgeMarkdown = ${JSON.stringify(badgeMarkdown)};\nconst teamCode = ${JSON.stringify(teamCode)};\nconst resultPayload = ${JSON.stringify({\n  referral_id: ref,\n  target,\n  runtime,\n  target_ready: targetReady,\n  target_total: targetTotal,\n  target_auto: targetAuto,\n  target_manual: targetManual,\n  target_context: targetContext,\n  target_deps: targetDeps,\n  portable_ready: ready,\n  total_skills: total,\n  drift,\n  complete: shareAchievement,\n})};\nconst anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+const badgeMarkdown = ${JSON.stringify(badgeMarkdown)};
+const teamCode = ${JSON.stringify(teamCode)};
+const resultPayload = ${JSON.stringify({
+  referral_id: ref,
+  target,
+  runtime,
+  target_ready: targetReady,
+  target_total: targetTotal,
+  target_auto: targetAuto,
+  target_manual: targetManual,
+  target_context: targetContext,
+  target_deps: targetDeps,
+  portable_ready: ready,
+  total_skills: total,
+  drift,
+  complete: shareAchievement,
+})};
+const anon = localStorage.getItem('apc_web_id') || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
 localStorage.setItem('apc_web_id', anon);
 
 async function track(event, extra={}) {
@@ -266,7 +302,13 @@ const checkEl = document.getElementById('check');
 const copyFixEl = document.getElementById('copyFix');
 const copyPostEl = document.getElementById('copyPost');
 const copyBadgeEl = document.getElementById('copyBadge');
-const copyEl = document.getElementById('copy');\nconst teamActionEl = document.getElementById('teamAction');\nconst identityPanelEl = document.getElementById('identityPanel');\nlet identitySupabase = null;\nlet identitySession = null;\nlet identityConfigured = false;\n
+const copyEl = document.getElementById('copy');
+const teamActionEl = document.getElementById('teamAction');
+const identityPanelEl = document.getElementById('identityPanel');
+let identitySupabase = null;
+let identitySession = null;
+let identityConfigured = false;
+
 if (linkedinEl) linkedinEl.addEventListener('click',()=>track('apc_linkedin_share_clicked',{share_surface:'linkedin'}));
 if (xEl) xEl.addEventListener('click',()=>track('apc_x_share_clicked',{share_surface:'x'}));
 if (checkEl) checkEl.addEventListener('click',()=>track('apc_check_yours_clicked'));

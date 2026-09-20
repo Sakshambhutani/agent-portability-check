@@ -46,7 +46,9 @@
     <div class="targets" aria-label="Choose a migration target">
       <button class="target" data-target="claude" data-runtime="local">Moving to Claude Code</button>
       <button class="target" data-target="codex" data-runtime="local">Moving to Codex</button>
-      <button class="target" data-target="cursor" data-runtime="local">Moving to Cursor</button>\n      <button class="target" data-target="cursor" data-runtime="cloud">Moving to Cursor Cloud</button>\n      <button class="target" data-target="" data-runtime="local">Check current setup</button>
+      <button class="target" data-target="cursor" data-runtime="local">Moving to Cursor</button>
+      <button class="target" data-target="cursor" data-runtime="cloud">Moving to Cursor Cloud</button>
+      <button class="target" data-target="" data-runtime="local">Check current setup</button>
     </div>
 
     <div id="refbox" class="ref"></div>
@@ -115,19 +117,29 @@ const commandEl = document.getElementById('command');
 const copyEl = document.getElementById('copy');
 const exampleHead = document.getElementById('exampleHead');
 const exampleText = document.getElementById('exampleText');
-let selectedTarget = initialTarget;\nlet selectedRuntime = initialRuntime;\n
+let selectedTarget = initialTarget;
+let selectedRuntime = initialRuntime;
+
 function buildCommand() {
   return [
     'npx github:Sakshambhutani/agent-portability-check',
-    selectedTarget ? '--target ' + selectedTarget : '',\n    selectedRuntime === 'cloud' ? '--runtime cloud' : '',\n    wantsFix ? '--fix' : '',\n    ref ? '--ref ' + ref : '',\n    team ? '--team ' + team : ''\n  ].filter(Boolean).join(' ');
+    selectedTarget ? '--target ' + selectedTarget : '',
+    selectedRuntime === 'cloud' ? '--runtime cloud' : '',
+    wantsFix ? '--fix' : '',
+    ref ? '--ref ' + ref : '',
+    team ? '--team ' + team : ''
+  ].filter(Boolean).join(' ');
 }
 
 function updateUI() {
-  targetButtons.forEach(button => button.classList.toggle('active', button.dataset.target === selectedTarget && (button.dataset.runtime || 'local') === selectedRuntime));\n  commandEl.textContent = buildCommand();
+  targetButtons.forEach(button => button.classList.toggle('active', button.dataset.target === selectedTarget && (button.dataset.runtime || 'local') === selectedRuntime));
+  commandEl.textContent = buildCommand();
   copyEl.textContent = wantsFix ? 'Copy fix command' : 'Copy 10-second check';
 
   if (selectedTarget) {
-    const label = labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '');\n    exampleHead.textContent = 'Example · migration to ' + label;\n    exampleText.textContent =
+    const label = labels[selectedTarget] + (selectedRuntime === 'cloud' ? ' Cloud' : '');
+    exampleHead.textContent = 'Example · migration to ' + label;
+    exampleText.textContent =
 `TARGET COMPATIBILITY — ${label}
 ────────────────────────────────────
 Skills checked       7
@@ -152,11 +164,20 @@ Run with --fix to preview safe changes.`;
   }
 
   const url = new URL(location.href);
-  if (selectedTarget) url.searchParams.set('target', selectedTarget);\n  else url.searchParams.delete('target');\n  if (selectedRuntime === 'cloud') url.searchParams.set('runtime','cloud');\n  else url.searchParams.delete('runtime');\n  history.replaceState({}, '', url);\n}
+  if (selectedTarget) url.searchParams.set('target', selectedTarget);
+  else url.searchParams.delete('target');
+  if (selectedRuntime === 'cloud') url.searchParams.set('runtime','cloud');
+  else url.searchParams.delete('runtime');
+  history.replaceState({}, '', url);
+}
 
 targetButtons.forEach(button => {
   button.addEventListener('click', () => {
-    selectedTarget = button.dataset.target;\n    selectedRuntime = button.dataset.runtime || 'local';\n    updateUI();\n    track('apc_target_selected', { target_agent: selectedTarget || 'current', target_runtime: selectedRuntime });\n  });
+    selectedTarget = button.dataset.target;
+    selectedRuntime = button.dataset.runtime || 'local';
+    updateUI();
+    track('apc_target_selected', { target_agent: selectedTarget || 'current', target_runtime: selectedRuntime });
+  });
 });
 
 if (ref || wantsFix) {

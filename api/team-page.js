@@ -224,14 +224,18 @@ $('join').addEventListener('click', async () => {
   });
   const data = await response.json();
   if (!response.ok) return $('authStatus').textContent = data.error || 'Could not join team.';
-  $('authStatus').textContent = 'Joined. Run the command below, then save your result to this team.';\n  track('apc_team_joined');\n  $('scanArea').classList.remove('hidden');
+  $('authStatus').textContent = 'Joined. Run the command below, then save your result to this team.';
+  track('apc_team_joined');
+  $('scanArea').classList.remove('hidden');
   $('command').textContent = commandForTeam();
   await loadTeam();
 });
 
 $('copyCommand').addEventListener('click', async () => {
   await navigator.clipboard.writeText(commandForTeam());
-  $('copyCommand').textContent = 'Copied — paste in Terminal';\n  track('apc_team_command_copied');\n});
+  $('copyCommand').textContent = 'Copied — paste in Terminal';
+  track('apc_team_command_copied');
+});
 
 await loadTeam();
 await setupAuth();

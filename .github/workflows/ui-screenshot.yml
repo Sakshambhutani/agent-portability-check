@@ -53,6 +53,15 @@ jobs:
             'https://agent-portability-check.vercel.app/r/ui-trophy?v=6&score=na&total=7&portable=0&ready=7&shared=7&drift=0&agents=codex&target=claude&targetReady=7&targetTotal=7&targetAuto=0&targetManual=0&targetContext=0&targetDeps=0&runtime=local&targetComplete=1' \
             trophy.png
 
+      - name: Capture team shell
+        run: |
+          npx -y playwright@1.55.0 screenshot \
+            --browser chromium \
+            --viewport-size "1440,1100" \
+            --full-page \
+            'https://agent-portability-check.vercel.app/team/preview-team' \
+            team.png
+
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
         with:
@@ -61,4 +70,5 @@ jobs:
             landing.png
             before.png
             trophy.png
+            team.png
           retention-days: 3
