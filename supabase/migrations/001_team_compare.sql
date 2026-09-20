@@ -70,7 +70,7 @@ create or replace function public.apc_create_team(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public, auth, extensions
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -126,7 +126,7 @@ create or replace function public.apc_join_team(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public, auth, extensions
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -183,7 +183,7 @@ create or replace function public.apc_save_result(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public, auth, extensions
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -261,7 +261,7 @@ returns jsonb
 language sql
 stable
 security definer
-set search_path = public, auth
+set search_path = public, auth, extensions
 as $$
 with team as (
   select id, name, invite_code, target, runtime, created_at
