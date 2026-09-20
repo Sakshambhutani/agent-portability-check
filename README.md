@@ -78,15 +78,20 @@ creator / community / shared result
                  ↓
        Ready / Auto-fix / Manual
                  ↓
-                FIX
+          FIX safe issues
+                 ↓
+     REVIEW manual blockers
                  ↓
           all skills ready
                  ↓
              TROPHY
-           ↙        ↘
-      social post   README badge
-           ↓             ↓
-          more people discover
+        ↙        ↓        ↘
+ social post  teammate   README badge
+               challenge
+                 ↓
+          teammate scans
+                 ↓
+           Team Compare
 ```
 
 Low-readiness result pages lead with **Copy fix command**.
@@ -160,10 +165,12 @@ The CLI separates:
 
 Every scan produces:
 
-- a local SVG share card
+- a local SVG diagnostic card
 - a local detailed HTML report
 - a local JSON report
-- a referral-aware public result URL
+- a referral-aware public diagnostic URL
+
+Before achievement, the page is intentionally a **private diagnostic**: it leads with fixing and does not show social-share or Team Compare controls.
 
 After an achievement, the public result page can generate:
 
@@ -235,14 +242,19 @@ Explicit resume:
 npx github:Sakshambhutani/agent-portability-check --resume
 ```
 
-After a normal scan the terminal becomes the primary action surface:
+After a normal scan the terminal becomes the primary action surface. The choices depend on state:
 
 ```text
-[F] Fix now
-[T] Test migration
-[V] View result
-[Q] Continue later
+Safe fixes remain:
+[F] Fix now  [T] Test migration  [V] View diagnostic  [Q] Continue later
+
+Automatic fixes exhausted:
+[R] Review issues  [T] Test migration  [V] View diagnostic  [Q] Continue later
 ```
+
+Selecting **Review issues** prints the exact package blocker when possible (for example missing frontmatter/description, folder mismatch, or missing companion file).
+
+A partial fix immediately returns to this next-step state; users do not need to run `--resume` just to continue the journey.
 
 After an achievement, the CLI offers to open the trophy directly in the browser. If the user declines, the trophy remains attached to the local session and can be reopened with `--resume`.
 
@@ -291,6 +303,8 @@ The public/CLI flow can emit anonymous events such as:
 - `apc_fix_previewed`
 - `apc_fix_command_copied`
 - `apc_fix_applied`
+- `apc_manual_issues_reviewed`
+- `apc_migration_test_selected`
 - `apc_portable_ready_achieved`
 - `apc_share_link_generated`
 - `apc_referral_page_opened`
@@ -303,6 +317,9 @@ The public/CLI flow can emit anonymous events such as:
 -p, --path <dir>       Project to scan
 -o, --output <dir>     Report folder
     --target <agent>    claude | codex | cursor
+    --runtime <mode>    local | cloud (Cursor Cloud)
+    --team <code>       Attach an explicitly joined team invite
+    --resume [id]       Resume latest or named local session
     --fix              Preview/apply safe fixes
 -y, --yes              Apply --fix without confirmation
     --ref <id>          Attribute a referred scan
