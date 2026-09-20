@@ -9,16 +9,16 @@ jobs:
   health:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for exact production release
+      - name: Wait for exact production commit
         run: |
           set -euo pipefail
-          for attempt in {1..24}; do
-            version="$(curl -fsS https://agent-portability-check.vercel.app/api/version || true)"
-            if echo "$version" | grep -q '"version":"0.7.0"'; then
-              echo "v0.7.0 is live."
+          for attempt in {1..30}; do
+            payload="$(curl -fsS https://agent-portability-check.vercel.app/api/version || true)"
+            if echo "$payload" | grep -q "\"commit\":\"$GITHUB_SHA\""; then
+              echo "Production is on $GITHUB_SHA"
               exit 0
             fi
-            echo "Waiting for Vercel production alias (attempt $attempt/24)..."
+            echo "Waiting for Vercel production alias (attempt $attempt/30)..."
             sleep 10
           done
           exit 1
@@ -76,18 +76,19 @@ jobs:
           grep -Eiq 'content-type: image/svg\+xml' /tmp/badge-headers.txt
           grep -q '7/7 ready' /tmp/badge.svg
 
-      - name: Check team page shell and Supabase config endpoint
+      - name: Check Team Compare configuration and auth gate
         run: |
           set -euo pipefail
           team_page="$(curl -fsS https://agent-portability-check.vercel.app/team/preview-team)"
           echo "$team_page" | grep -q 'TEAM COMPARE'
+
           config="$(curl -fsS https://agent-portability-check.vercel.app/api/public-config)"
           echo "$config" | grep -q '"configured":true'
           echo "$config" | grep -q 'mjcuwaydrhzbpspkwhge.supabase.co'
 
-          unauth_create="$(curl -sS -o /tmp/team-create.json -w '%{http_code}' \
+          status="$(curl -sS -o /tmp/team-create.json -w '%{http_code}' \
             -X POST https://agent-portability-check.vercel.app/api/team-create \
             -H 'Content-Type: application/json' \
             --data '{"name":"CI Team"}')"
-          test "$unauth_create" = "401"
+          test "$status" = "401"
           grep -q 'missing_auth' /tmp/team-create.json
