@@ -1,4 +1,5 @@
 import { supabaseRpc } from '../lib/supabase.js';
+import { HARNESS_ORDER, harnessDefinition, targetLabels } from '../src/harnesses.js';
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -24,16 +25,16 @@ function cleanTeam(value) {
 }
 
 function cleanTarget(value) {
-  return ['claude', 'codex', 'cursor'].includes(value) ? value : '';
+  return HARNESS_ORDER.includes(value) ? value : '';
 }
 
 function cleanAgents(value) {
-  const allowed = new Set(['codex','claude','cursor']);
+  const allowed = new Set(HARNESS_ORDER);
   return String(value || '')
     .split(',')
     .map(x => x.trim().toLowerCase())
     .filter(x => allowed.has(x))
-    .slice(0, 3);
+    .slice(0, HARNESS_ORDER.length);
 }
 
 function publicResultInt(value, min, max, fallback = 0) {
@@ -44,8 +45,8 @@ function publicResultInt(value, min, max, fallback = 0) {
 function publicResultAgents(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map(v => String(v).toLowerCase()))]
-    .filter(v => ['codex','claude','cursor'].includes(v))
-    .slice(0, 3);
+    .filter(v => HARNESS_ORDER.includes(v))
+    .slice(0, HARNESS_ORDER.length);
 }
 
 async function createPublicResult(req, res) {
@@ -101,7 +102,7 @@ async function createPublicResult(req, res) {
   }
 }
 
-const LABELS = { codex: 'Codex', claude: 'Claude Code', cursor: 'Cursor' };
+const LABELS = targetLabels();
 
 export default async function handler(req, res) {
   if (req.method === 'POST') return createPublicResult(req, res);
@@ -133,7 +134,6 @@ export default async function handler(req, res) {
   const drift = intParam(source.drift, 0, 999, 0);
   const agents = cleanAgents(source.agents);
   const target = cleanTarget(source.target);
-  const targetLabel = target ? LABELS[target] : '';
   const targetTotal = target ? intParam(source.targetTotal, 0, 999, total) : 0;
   const targetReady = target ? intParam(source.targetReady, 0, targetTotal || 999, 0) : 0;
   const targetAuto = target ? intParam(source.targetAuto, 0, 999, 0) : 0;
@@ -141,6 +141,9 @@ export default async function handler(req, res) {
   const targetContext = target ? intParam(source.targetContext, 0, 999, 0) : 0;
   const targetDeps = target ? intParam(source.targetDeps, 0, 999, 0) : 0;
   const runtime = source.runtime === 'cloud' ? 'cloud' : 'local';
+  const targetLabel = target
+    ? (runtime === 'cloud' ? (harnessDefinition(target)?.cloudLabel || `${LABELS[target]} Cloud`) : LABELS[target])
+    : '';
 
   const singleAgent = score === null;
   const readiness = total > 0 ? Math.round(100 * ready / total) : null;
@@ -189,7 +192,7 @@ export default async function handler(req, res) {
     : portableReady
       ? `${ready}/${total} global skills are in shared format with no drift.`
       : target
-        ? `${targetAuto} auto-fix, ${targetManual} manual, ${targetDeps} dependency blockers, and ${targetContext} context gaps before moving to ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}.`
+        ? `${targetAuto} auto-fix, ${targetManual} manual, ${targetDeps} dependency blockers, and ${targetContext} context gaps before moving to ${targetLabel}.`
         : `${total} global skills found in ${agentLabel}. ${ready} are currently portable-ready.`;
 
   const og = new URL('/api/og', origin);
@@ -215,7 +218,7 @@ export default async function handler(req, res) {
   const linkedin = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonical)}`;
 
   const shareSentence = targetComplete
-    ? `I got all ${targetTotal} of my AI skill packages ready for ${targetLabel}${runtime === 'cloud' ? ' Cloud' : ''}.${targetContext ? ` The checker still flags ${targetContext} separate context gap${targetContext === 1 ? '' : 's'}.` : ''}`
+    ? `I got all ${targetTotal} of my AI skill packages ready for ${targetLabel}.${targetContext ? ` The checker still flags ${targetContext} separate context gap${targetContext === 1 ? '' : 's'}.` : ''}`
     : `I made my AI setup 100% portable-ready. ${ready}/${total} skills are now in shared format.`;
 
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareSentence + ' Check yours:')}&url=${encodeURIComponent(canonical)}`;
