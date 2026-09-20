@@ -188,7 +188,7 @@ function referencedLocalPaths(content) {
     if (value) found.add(value);
   }
 
-  for (const match of content.matchAll(/\b(?:scripts|references|assets)\/[A-Za-z0-9._/-]+(?:#[A-Za-z0-9._:-]+)?/g)) {
+  for (const match of content.matchAll(/(?<![A-Za-z0-9_}\/])(?:scripts|references|assets)\/[A-Za-z0-9._/-]+(?:#[A-Za-z0-9._:-]+)?/g)) {
     const value = cleanReferenceTarget(match[0]);
     if (value) found.add(value);
   }
@@ -428,11 +428,12 @@ function gatherSkills(base, scope, cwd, home) {
   for (const spec of specs) {
     const root = spec.root;
     for (const file of walkSkillFiles(root)) {
-      let realFile = file;
-      try { realFile = fs.realpathSync(file); } catch {}
-      const pathKey = spec.sourceType === 'plugin'
-        ? String(spec.pluginId || '') + ':' + realFile
-        : realFile;
+      const pathKey = [
+        spec.owner || '',
+        spec.sourceType || 'skill-root',
+        spec.pluginId || '',
+        path.resolve(file),
+      ].join(':');
       if (seenPaths.has(pathKey)) continue;
       seenPaths.add(pathKey);
 
