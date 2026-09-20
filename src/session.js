@@ -22,7 +22,7 @@ export function newSessionId() {
 }
 
 export function isAchievement(report, targetCompatibility = null) {
-  if (targetCompatibility) return Boolean(targetCompatibility.fullyReady);
+  if (targetCompatibility) return Boolean(targetCompatibility.skillPackagesReady ?? targetCompatibility.fullyReady);
   return Boolean(
     report?.global?.totalSkills > 0 &&
     report?.global?.portableReadyPercent === 100 &&
